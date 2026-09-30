@@ -396,10 +396,70 @@ def:pub app -> JsxElement {
         },
         []
     );
+    useEffect(
+        lambda {
+
+            if not editing {
+                return;
+            }
+
+            opener: any = document.activeElement;
+            editor: any = document.getElementById("task-editor");
+            titleInput: any = editor.querySelector("input");
+            titleInput.focus();
+            handleKeyDown = lambda (e: any) {
+
+                if e.key == "Escape" {
+                    e.preventDefault();
+
+                    if not busy {
+                        editing = False;
+                    }
+                }
+
+                if e.key == "Tab" {
+                    controls: any = editor.querySelectorAll(
+                        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)"
+                    );
+
+                    if len(controls) == 0 {
+                        e.preventDefault();
+                        editor.focus();
+                    } else {
+                        first: any = controls[0];
+                        last: any = controls[len(controls) - 1];
+
+                        if not editor.contains(document.activeElement)
+                            or (e.shiftKey and document.activeElement == first)
+                            or (not e.shiftKey and document.activeElement == last) {
+                            e.preventDefault();
+                            (last if e.shiftKey else first).focus();
+                        }
+                    }
+                }
+            };
+            document.addEventListener("keydown", handleKeyDown, True);
+
+            return lambda {
+                document.removeEventListener("keydown", handleKeyDown, True);
+
+                if opener and opener.isConnected and not opener.matches(":disabled") {
+                    opener.focus();
+                } else {
+                    fallback: any = document.querySelector(".new-task:not(:disabled), .nav-tab.active");
+
+                    if fallback {
+                        fallback.focus();
+                    }
+                }
+            };
+        },
+        [editing]
+    );
 
     return
         <main className="shell">
-            <header className="masthead">
+            <header className="masthead" inert={editing}>
                 <div className="brand">JacPlanner</div>
                 <nav aria-label="Planner views">
                     <button
@@ -436,7 +496,7 @@ def:pub app -> JsxElement {
             {<p className="error" role="alert">{error}</p>
                 if error and not editing
                 else <span/>}
-            <div className="layout">
+            <div className="layout" inert={editing}>
                 <aside className="tray">
                     <div className="section-heading">
                         <h2>To schedule</h2>
@@ -786,12 +846,11 @@ def:pub app -> JsxElement {
                 onClick={lambda (e: any) { if e.target == e.currentTarget and not busy {
                     editing = False;
                 }}}
-                onKeyDown={lambda (e: any) { if e.key == "Escape" and not busy {
-                    editing = False;
-                }}}
             >
                 <section
                     className="editor"
+                    id="task-editor"
+                    tabIndex={-1}
                     role="dialog"
                     aria-modal="true"
                     aria-label={"Edit task" if taskId else "New task"}
