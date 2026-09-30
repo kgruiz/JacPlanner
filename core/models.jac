@@ -6,6 +6,7 @@ obj:pub TaskView {
         priority: str = "medium",
         estimateMinutes: int = 30,
         plannedDate: str = "",
+        plannedTime: str = "",
         notes: str = "",
         completed: bool = False;
 }

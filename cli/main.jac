@@ -5,14 +5,8 @@ import json;
 import sys;
 import from jaclang.server { sv_client }
 import from jaclang.server.bridge { BridgeError }
-import from core.planner {
-    TaskView,
-    TaskList,
-    TaskResult,
-    ListTasks,
-    SaveTask,
-    SetCompleted
-}
+import from core.models { TaskView, TaskList, TaskResult }
+import from core.planner { ListTasks, SaveTask, ScheduleTask, SetCompleted }
 
 def BuildParser -> argparse.ArgumentParser {
     parser = argparse.ArgumentParser(
@@ -40,6 +34,9 @@ def BuildParser -> argparse.ArgumentParser {
     );
     add.add_argument("--minutes", `type=int, `default=30);
     add.add_argument("--day", `default="", help="Plan date as YYYY-MM-DD");
+    add.add_argument(
+        "--time", `default="", help="Block start as HH:MM (requires --day)"
+    );
     add.add_argument("--notes", `default="");
     listing = commands.add_parser(
         "list", help="List tasks, optionally for one day or course"
@@ -50,6 +47,8 @@ def BuildParser -> argparse.ArgumentParser {
     schedule = commands.add_parser("schedule", help="Move a task into a daily plan");
     schedule.add_argument("taskId", help="Task ID or unique ID prefix");
     schedule.add_argument("day", help="YYYY-MM-DD, today, or none to unschedule");
+
+    schedule.add_argument("--time", `default="", help="Block start as HH:MM");
 
     for command in ["complete", "reopen"] {
         action = commands.add_parser(command, help=command.capitalize() + " a task");
@@ -114,6 +113,12 @@ def DisplayTasks(tasks: list[TaskView], asJson: bool) {
         day = datetime.date.fromisoformat(task.plannedDate).strftime("%m/%d/%Y")
             if task.plannedDate
             else "Unscheduled";
+        if task.plannedTime {
+            day += " at "
+                + datetime.datetime.strptime(task.plannedTime, "%H:%M").strftime(
+                    "%I:%M %p"
+                );
+        }
         due = datetime.date.fromisoformat(task.dueDate).strftime("%m/%d/%Y")
             if task.dueDate
             else "None";
@@ -134,6 +139,7 @@ def TaskData(task: TaskView) -> dict[str, any] {
         "priority": task.priority,
         "estimateMinutes": task.estimateMinutes,
         "plannedDate": task.plannedDate,
+        "plannedTime": task.plannedTime,
         "notes": task.notes,
         "completed": task.completed
     };
@@ -153,7 +159,8 @@ async def main(argv: list[str]) -> int {
                 args.priority,
                 args.minutes,
                 PlanDate(args.day),
-                args.notes
+                args.notes,
+                args.time
             );
         } else {
             listing = await ListTasks();
@@ -178,16 +185,7 @@ async def main(argv: list[str]) -> int {
             }
             task = ResolveTask(listing.tasks, args.taskId);
             if args.command == "schedule" {
-                result = await SaveTask(
-                    task.taskId,
-                    task.title,
-                    task.course,
-                    task.dueDate,
-                    task.priority,
-                    task.estimateMinutes,
-                    PlanDate(args.day),
-                    task.notes
-                );
+                result = await ScheduleTask(task.taskId, PlanDate(args.day), args.time);
             } else {
                 result = await SetCompleted(task.taskId, args.command == "complete");
             }

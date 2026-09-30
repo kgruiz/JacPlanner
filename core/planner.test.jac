@@ -156,3 +156,96 @@ test "malformed transport parameters leave existing task data intact" {
         }
     }
 }
+
+test "time blocks validate and persist without losing legacy edits" {
+    with TemporaryDirectory() as storePath {
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+        try {
+            invalidTimes = ["9:00", "24:00", "12:60", "12:00:00", "aa:bb", "１２:００"];
+
+            for plannedTime in invalidTimes {
+                result = client.post(
+                    "/function/SaveTask",
+                    json={
+                        "title": "Invalid",
+                        "plannedDate": "2026-09-30",
+                        "plannedTime": plannedTime
+                    }
+                ).data["result"];
+                assert not result["ok"];
+            }
+            assert not client.post(
+                "/function/SaveTask", json={"title": "No day", "plannedTime": "09:00"}
+            ).data["result"]["ok"];
+            assert not client.post(
+                "/function/SaveTask",
+                json={
+                    "title": "Too late",
+                    "plannedDate": "2026-09-30",
+                    "plannedTime": "23:31",
+                    "estimateMinutes": 30
+                }
+            ).data["result"]["ok"];
+            saved = client.post(
+                "/function/SaveTask",
+                json={
+                    "title": "Midnight boundary",
+                    "plannedDate": "2026-09-30",
+                    "plannedTime": "23:30",
+                    "estimateMinutes": 30
+                }
+            ).data["result"];
+            assert saved["ok"];
+            taskId = saved["task"]["taskId"];
+            edited = client.post(
+                "/function/SaveTask",
+                json={
+                    "taskId": taskId,
+                    "title": "Legacy edit",
+                    "plannedDate": "2026-09-30"
+                }
+            ).data["result"];
+            assert edited["ok"] and edited["task"]["plannedTime"] == "23:30";
+            rejected = client.post(
+                "/function/ScheduleTask",
+                json={
+                    "taskId": taskId,
+                    "plannedDate": "2026-10-01",
+                    "plannedTime": "23:59"
+                }
+            ).data["result"];
+            assert not rejected["ok"];
+        } finally {
+            client.close();
+        }
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+        try {
+            stored = client.post("/function/ListTasks", json={}).data["result"][
+                "tasks"
+            ];
+            assert stored[0]["plannedTime"] == "23:30";
+            assert stored[0]["plannedDate"] == "2026-09-30";
+            unscheduled = client.post(
+                "/function/ScheduleTask", json={"taskId": taskId}
+            ).data["result"];
+            assert unscheduled["ok"];
+            assert unscheduled["task"]["plannedDate"] == "";
+            assert unscheduled["task"]["plannedTime"] == "";
+            timed = client.post(
+                "/function/ScheduleTask",
+                json={
+                    "taskId": taskId,
+                    "plannedDate": "2026-10-01",
+                    "plannedTime": "09:00"
+                }
+            ).data["result"];
+            assert timed["ok"] and timed["task"]["title"] == "Legacy edit";
+            cleared = client.post(
+                "/function/SaveTask", json={"taskId": taskId, "title": "Cleared"}
+            ).data["result"];
+            assert cleared["ok"] and cleared["task"]["plannedTime"] == "";
+        } finally {
+            client.close();
+        }
+    }
+}

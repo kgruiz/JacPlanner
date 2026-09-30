@@ -46,3 +46,16 @@ test "JSON output preserves numeric and boolean task fields" {
     assert record["completed"] == True;
     assert record["taskId"] == "example";
 }
+
+test "time options reach canonical JSON schedules" {
+    added = BuildParser().parse_args(
+        ["add", "Task", "--day", "2026-09-30", "--time", "09:30"]
+    );
+    assert added.time == "09:30";
+    moved = BuildParser().parse_args(["schedule", "abc", "today", "--time", "14:00"]);
+    assert moved.time == "14:00";
+    dayOnly = BuildParser().parse_args(["schedule", "abc", "none"]);
+    assert dayOnly.time == "";
+    task = TaskView(plannedDate="2026-09-30", plannedTime="09:30");
+    assert TaskData(task)["plannedTime"] == "09:30";
+}

@@ -8,6 +8,7 @@ node Task {
         priority: str = "medium",
         estimateMinutes: int = 30,
         plannedDate: str = "",
+        plannedTime: str = "",
         notes: str = "",
         completed: bool = False;
 
@@ -20,6 +21,7 @@ node Task {
             priority=self.priority,
             estimateMinutes=self.estimateMinutes,
             plannedDate=self.plannedDate,
+            plannedTime=getattr(self, "plannedTime", ""),
             notes=self.notes,
             completed=self.completed
         );
@@ -38,6 +40,42 @@ def:priv ValidDate(value: str) -> bool {
     } except ValueError {
         return False;
     }
+}
+
+def:priv ScheduleError(
+    plannedDate: str, plannedTime: str, estimateMinutes: int
+) -> str {
+    if not ValidDate(plannedDate) {
+        return "Dates must be valid YYYY-MM-DD values or blank.";
+    }
+
+    if plannedTime == "" {
+        return "";
+    }
+
+    if not plannedDate {
+        return "A planned time requires a planned date.";
+    }
+
+    if len(plannedTime) != 5
+        or plannedTime[2] != ":"
+        or not all(
+            char in "0123456789" for char in plannedTime[:2] + plannedTime[3:]
+        ) {
+        return "Planned time must be a valid HH:MM value or blank.";
+    }
+    hour = int(plannedTime[:2]);
+    minute = int(plannedTime[3:]);
+
+    if hour > 23 or minute > 59 {
+        return "Planned time must be a valid HH:MM value or blank.";
+    }
+
+    if hour * 60 + minute + estimateMinutes > 1440 {
+        return "A time block cannot extend past midnight.";
+    }
+
+    return "";
 }
 
 def:priv FindTask(taskId: str) -> Task | None {
@@ -62,7 +100,8 @@ def:pub SaveTask(
     priority: str = "medium",
     estimateMinutes: int = 30,
     plannedDate: str = "",
-    notes: str = ""
+    notes: str = "",
+    plannedTime: str | None = None
 ) -> TaskResult {
     cleanTitle = title.strip();
     # Jac 0.37.23's REST binder supplies omitted numeric defaults as strings.
@@ -90,6 +129,18 @@ def:pub SaveTask(
         return TaskResult(error="Task was not found.");
     }
 
+    # The REST binder serializes an omitted None default as the string "None".
+    cleanTime = plannedTime
+        if plannedTime is not None and plannedTime != "None"
+        else (
+            getattr(task, "plannedTime", "") if task is not None and plannedDate else ""
+        );
+    scheduleError = ScheduleError(plannedDate, cleanTime, estimateMinutes);
+
+    if scheduleError {
+        return TaskResult(error=scheduleError);
+    }
+
     if task is None {
         task = root ++> Task();
     }
@@ -99,7 +150,27 @@ def:pub SaveTask(
     task.priority = priority;
     task.estimateMinutes = estimateMinutes;
     task.plannedDate = plannedDate;
+    task.plannedTime = cleanTime;
     task.notes = notes;
+
+    return TaskResult(ok=True, task=task.ToView());
+}
+
+def:pub ScheduleTask(
+    taskId: str, plannedDate: str = "", plannedTime: str = ""
+) -> TaskResult {
+    task = FindTask(taskId);
+
+    if task is None {
+        return TaskResult(error="Task was not found.");
+    }
+    scheduleError = ScheduleError(plannedDate, plannedTime, task.estimateMinutes);
+
+    if scheduleError {
+        return TaskResult(error=scheduleError);
+    }
+    task.plannedDate = plannedDate;
+    task.plannedTime = plannedTime;
 
     return TaskResult(ok=True, task=task.ToView());
 }
