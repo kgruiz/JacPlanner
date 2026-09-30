@@ -589,7 +589,22 @@ def:pub app -> JsxElement {
                                 ]}
                             </div>
                             {[
-                                <div className="day-grid" key={day}>
+                                <div
+                                    className="day-grid"
+                                    key={day}
+                                    onDragOver={lambda (e: any) { e.preventDefault(); }}
+                                    onDrop={lambda (e: any) {
+                                        e.preventDefault();
+                                        droppedTaskId = e.dataTransfer.getData("text/plain");
+
+                                        if droppedTaskId {
+                                            hour = min(23, max(0, int((
+                                                e.clientY - e.currentTarget.getBoundingClientRect().top
+                                            ) / 64)));
+                                            Schedule(droppedTaskId, day, hour);
+                                        }
+                                    }}
+                                >
                                     {[
                                         <button
                                             className="time-slot"
@@ -600,17 +615,6 @@ def:pub app -> JsxElement {
                                                 + TimeLabel(hour * 60)}
                                             disabled={busy}
                                             onClick={lambda { NewSlot(day, hour); }}
-                                            onDragOver={lambda (e: any) { e.preventDefault(); }}
-                                            onDrop={lambda (e: any) {
-                                                e.preventDefault();
-                                                Schedule(
-                                                    e.dataTransfer.getData(
-                                                        "text/plain"
-                                                    ),
-                                                    day,
-                                                    hour
-                                                );
-                                            }}
                                         /> for hour in range(24)
                                     ]}{[
                                         <button
