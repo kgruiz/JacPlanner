@@ -1,6 +1,6 @@
 # Native mobile app
 
-The mobile daily plan uses the same planner service and graph database as the browser and CLI. It supports choosing a day, adding tasks with all task fields, completing tasks, and reopening completed tasks. Dates are entered as `YYYY-MM-DD` and displayed as `MM/DD/YYYY`.
+The mobile daily plan uses the same planner service and graph database as the browser and CLI. Its native Calendar tab shows a daily hour timeline, a seven-day date strip, upcoming deadlines, and an expandable unscheduled tray. The Tasks tab supports editing, completing, and reopening every task. Dates are entered as `YYYY-MM-DD` and displayed as `MM/DD/YYYY`.
 
 ## Prerequisites
 
@@ -50,11 +50,16 @@ Use an iOS 26 simulator listed on your Mac if `iPhone 17 Pro,OS=26.5` is unavail
 
 ## Controls
 
-- **Add task** opens the entry form. Set a planned date to include the task in that day's plan.
-- **Choose date** filters the plan. **Today** returns to the current local day.
-- **Mark complete** removes a task's estimate from remaining minutes. **Completed / Reopen** restores it.
-- **Refresh** reloads server changes made in the browser or CLI.
+- **+** opens a new task form. Tap a timeline block or task title to edit all fields.
+- **Calendar** shows the selected day's timed blocks and an **All day / No time** section for dated tasks without a time. Overlapping tasks occupy separate columns. The timeline expands for early and late tasks.
+- The date strip selects a day. **Week** arrows move backward or forward seven days; **Today** returns to the current local date.
+- **Planned date** uses `YYYY-MM-DD`; optional **Planned time** uses 24-hour `HH:MM`. A time requires a date. Estimates determine block duration; the server rejects blocks ending after midnight. Clear the time to make a dated task untimed, or clear both fields to unschedule it.
+- **Tasks** lists every task with **Mark complete** and **Completed / Reopen** controls. Task titles open the editor.
+- **Unscheduled** expands above the tabs to show tasks without a planned day. Tap a title to schedule it.
+- **Refresh** reloads changes from the browser or CLI. Errors retain the form draft so it can be retried.
 
-If the server is unavailable, the app displays an error and allows refreshing. This app requires the local server; it does not maintain an offline copy of tasks. The native interface intentionally provides task creation and completion controls; full task editing and deletion are available on the web dashboard.
+Course colors use the same deterministic character-sum palette as the web view. Deadline notices use open tasks due on the selected day or the following day. The red current-time line appears only on today's calendar and updates when the view renders or refreshes.
+
+If the server is unavailable, the app displays an error and allows refreshing. This app requires the local server and does not maintain an offline copy of tasks. Task deletion is available on the web dashboard.
 
 Unsigned simulator builds can show Expo SecureStore entitlement warnings. Public local planner endpoints do not require an authentication token. Device Hub UI automation timed out during verification, so native task entry and completion interactions still need a manual simulator check.
