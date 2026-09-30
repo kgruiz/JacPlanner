@@ -1,6 +1,14 @@
 import "./dashboard.css";
+import from react { useEffect }
 import from "@jac/runtime" { BridgeError }
-import from ..core.planner { TaskView, ListTasks, SaveTask, SetCompleted, DeleteTask }
+import from ..core.planner {
+    TaskView,
+    ListTasks,
+    SaveTask,
+    SetCompleted,
+    DeleteTask,
+    ScheduleTask
+}
 
 def Today -> str {
     now = new(Date);
@@ -19,6 +27,87 @@ def DisplayDate(value: str) -> str {
     parts = value.split("-");
 
     return parts[1] + "/" + parts[2] + "/" + parts[0];
+}
+
+def DateKey(date: any) -> str {
+    return str(date.getFullYear())
+        + "-"
+        + str(date.getMonth() + 1).zfill(2)
+        + "-"
+        + str(date.getDate()).zfill(2);
+}
+
+def ShiftDate(value: str, days: int) -> str {
+    date = new(Date, value + "T12:00:00");
+    date.setDate(date.getDate() + days);
+    return DateKey(date);
+}
+
+def WeekStart(value: str) -> str {
+    date = new(Date, value + "T12:00:00");
+    return ShiftDate(value, -int((date.getDay() + 6) % 7));
+}
+
+def CourseColor(course: str) -> str {
+    total = 0;
+    for i in range(len(course)) {
+        total += ord(course[i]);
+    }
+    return ["blue", "purple", "green", "orange"][total % 4];
+}
+
+def TimeMinutes(value: str) -> int {
+    parts = value.split(":");
+    return int(parts[0]) * 60 + int(parts[1]);
+}
+
+def TimeLabel(minutes: int) -> str {
+    hour = int(minutes / 60);
+    minute = minutes % 60;
+    return str(hour % 12 or 12)
+        + ":"
+        + str(minute).zfill(2)
+        + (" AM" if hour < 12 else " PM");
+}
+
+def EventStyle(task: any, tasks: list[any]) -> dict[str, str] {
+    dayTasks = [
+        item
+        for item in tasks
+        if item.plannedDate == task.plannedDate and item.plannedTime
+    ];
+    dayTasks.sort(
+        key=lambda (item: TaskView) { return item.plannedTime + item.taskId; }
+    );
+    laneEnds: list[int] = [];
+    selectedLane = 0;
+    for item in dayTasks {
+        start = TimeMinutes(item.plannedTime);
+        lane = 0;
+        while lane < len(laneEnds) and laneEnds[lane] > start {
+            lane += 1;
+        }
+        if lane == len(laneEnds) {
+            laneEnds = laneEnds + [start + item.estimateMinutes];
+        } else {
+            laneEnds[lane] = start + item.estimateMinutes;
+        }
+        if item.taskId == task.taskId {
+            selectedLane = lane;
+        }
+    }
+    laneCount = max(1, len(laneEnds));
+    return {
+        "top": str(TimeMinutes(task.plannedTime) * 64 / 60) + "px",
+        "height": str(max(28.0, task.estimateMinutes * 64 / 60)) + "px",
+        "left": "calc(" + str(selectedLane * 100 / laneCount) + "% + 5px)",
+        "width": "calc(" + str(100 / laneCount) + "% - 10px)"
+    };
+}
+
+def CurrentMinutes() -> int {
+    now = new(Date);
+    return int(now.getHours() * 60 + now.getMinutes());
 }
 
 def Field(
@@ -43,6 +132,11 @@ def Field(
 def:pub app -> JsxElement {
     has tasks: list[TaskView] = [],
         selectedDate: str = Today(),
+        tab: str = "calendar",
+        search: str = "",
+        weekMode: str = "5",
+        plannedTime: str = "",
+        nowMinutes: int = CurrentMinutes(),
         status: str = "open",
         courseFilter: str = "",
         loading: bool = True,
@@ -89,6 +183,7 @@ def:pub app -> JsxElement {
         priority = task.priority;
         estimate = str(task.estimateMinutes);
         plannedDate = task.plannedDate;
+        plannedTime = task.plannedTime;
         notes = task.notes;
         editing = True;
         error = "";
@@ -101,10 +196,37 @@ def:pub app -> JsxElement {
         dueDate = "";
         priority = "medium";
         estimate = "30";
-        plannedDate = selectedDate;
+        plannedDate = "";
+        plannedTime = "";
         notes = "";
         editing = True;
         error = "";
+    }
+
+    def NewSlot(day: str, hour: int) {
+        NewTask();
+        plannedDate = day;
+        plannedTime = str(hour).zfill(2) + ":00";
+    }
+
+    async def Schedule(taskId: str, day: str, hour: int) {
+        if busy {
+            return;
+        }
+        busy = True;
+        error = "";
+        try {
+            result = await ScheduleTask(taskId, day, str(hour).zfill(2) + ":00");
+            if result.ok {
+                await Refresh();
+            } else {
+                error = result.error;
+            }
+        } except BridgeError as err {
+            error = "Could not schedule this task. Try again or edit its planned date and time.";
+        } finally {
+            busy = False;
+        }
     }
 
     async def Save {
@@ -125,7 +247,8 @@ def:pub app -> JsxElement {
                 priority,
                 int(estimate),
                 plannedDate,
-                notes
+                notes,
+                plannedTime
             );
 
             if result.ok {
@@ -184,6 +307,15 @@ def:pub app -> JsxElement {
 
     async can with entry {
         await Refresh();
+        window.setTimeout(
+            lambda {
+                grid: any = document.getElementById("calendar-scroll");
+                if grid {
+                    grid.scrollTop = 8 * 64;
+                }
+            },
+            100
+        );
     }
 
     filteredTasks = [
@@ -191,232 +323,422 @@ def:pub app -> JsxElement {
         for task in tasks
         if (not courseFilter or task.course == courseFilter)
             and (
+                not search
+                or search.lower()
+                    in (task.title + " " + task.course + " " + task.notes).lower()
+            )
+            and (
                 status == "all"
                 or (task.completed if status == "done" else not task.completed)
             )
     ];
-    dayTasks = [
+    trayTasks = [
         task
-        for task in tasks
-        if task.plannedDate == selectedDate
+        for task in filteredTasks
+        if not task.plannedTime
     ];
-    openTasks = [
-        task
-        for task in tasks
-        if not task.completed
-    ];
-    dayOpenTasks = [
-        task
-        for task in dayTasks
-        if not task.completed
-    ];
-    minutes = 0;
-
-    for task in dayOpenTasks {
-        minutes += task.estimateMinutes;
-    }
     courses: list[str] = [];
-
     for task in tasks {
         if task.course and task.course not in courses {
             courses = courses + [task.course];
         }
     }
+    start = WeekStart(selectedDate);
+    days = [ShiftDate(start, offset) for offset in range(int(weekMode))];
+    useEffect(
+        lambda {
+            timer = window.setInterval(
+                lambda { nowMinutes = CurrentMinutes(); }, 30000
+            );
+            return lambda { window.clearInterval(timer); };
+        },
+        []
+    );
 
     return
         <main className="shell">
             <header className="masthead">
-                <div className="brand">
-                    <span className="brand-mark">J</span>
-                    <span>JacPlanner</span>
-                </div>
-                <span className="semester">FALL 2026 / COURSEWORK</span>
-            </header>
-            <section className="intro">
-                <div>
-                    <p className="eyebrow">YOUR WORK, WITH ROOM TO BREATHE</p>
-                    <h1>A calmer plan.</h1>
-                    <p className="muted">
-                        Turn the semester into one manageable day at a time.
-                    </p>
-                </div>
-                <button className="primary" onClick={NewTask} disabled={busy}>
-                    + New task
+                <div className="brand">JacPlanner</div>
+                <nav aria-label="Planner views">
+                    <button
+                        className={"nav-tab active" if tab == "calendar" else "nav-tab"}
+                        onClick={lambda { tab = "calendar"; }}
+                    >
+                        Calendar
+                    </button>
+                    <button
+                        className={"nav-tab active" if tab == "tasks" else "nav-tab"}
+                        onClick={lambda { tab = "tasks"; }}
+                    >
+                        Tasks
+                    </button>
+                </nav>
+                <input
+                    className="search"
+                    aria-label="Search tasks"
+                    placeholder="Search tasks, courses, or notes..."
+                    value={search}
+                    onChange={lambda (e: ChangeEvent) { search = e.target.value; }}
+                />
+                <button
+                    className="quiet refresh"
+                    disabled={busy or loading}
+                    onClick={lambda { Refresh(); }}
+                >
+                    Refresh
                 </button>
-            </section>
-            {<p className="error" role="alert">{error}</p> if error else <span/>}
+            </header>
+            {<p className="error" role="alert">{error}</p>
+                if error and not editing
+                else <span/>}
             <div className="layout">
-                <section className="tasks-panel" aria-label="Coursework tasks">
+                <aside className="tray">
                     <div className="section-heading">
-                        <h2>
-                            Your coursework{" "}
-                            <span className="count">{str(len(openTasks))} open</span>
-                        </h2>
-                        <button
-                            className="quiet"
-                            disabled={busy or loading}
-                            onClick={lambda {
-                                error = "";
-                                Refresh();
-                            }}
-                        >
-                            Refresh
-                        </button>
+                        <h2>To schedule</h2>
+                        <span className="count">{str(len(trayTasks))}</span>
                     </div>
-                    <div className="filters">
-                        <label className="field">
-                            <span>Status</span>
-                            <select
-                                value={status}
-                                onChange={lambda (e: ChangeEvent) { status = e.target.value; }}
-                            >
-                                <option value="open">Open tasks</option>
-                                <option value="done">Completed</option>
-                                <option value="all">All tasks</option>
-                            </select>
-                        </label>
-                        <label className="field">
-                            <span>Course</span>
-                            <select
-                                value={courseFilter}
-                                onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}
-                            >
-                                <option value="">All courses</option>
-                                {[
-                                    <option key={value} value={value}>{value}</option>
-                                    for value in courses
-                                ]}
-                            </select>
-                        </label>
-                    </div>
-                    {<p className="empty" role="status">Loading your coursework...</p>
+                    <select
+                        aria-label="Filter by course"
+                        value={courseFilter}
+                        onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}
+                    >
+                        <option value="">All courses</option>
+                        {[
+                            <option key={value} value={value}>{value}</option>
+                            for value in courses
+                        ]}
+                    </select>
+                    <p className="tray-hint">
+                        Drag a task onto the calendar, or select it to plan a time.
+                    </p>
+                    {<p className="empty" role="status">Loading your tasks...</p>
                         if loading
                         else <span/>}
-                    {<div className="empty">
-                        <span className="empty-icon">✓</span>
-                        <h3>Room for what's next.</h3>
-                        <p>
-                            No tasks match these filters. Add coursework or choose another view.
-                        </p>
-                    </div>
-                        if not loading and len(filteredTasks) == 0
+                    {<p className="empty">
+                        All caught up. Add a task to make room for what's next.
+                    </p>
+                        if not loading and len(trayTasks) == 0
                         else <span/>}
-                    <div className="task-list">
-                        {[
-                            <article className="task-card" key={task.taskId}>
-                                <button
-                                    className="check"
-                                    aria-label={"Reopen " + task.title
-                                        if task.completed
-                                        else "Complete " + task.title}
-                                    aria-pressed={task.completed}
-                                    disabled={busy or loading}
-                                    onClick={lambda { Toggle(task); }}
+                    {[
+                        <article
+                            className="tray-task"
+                            key={task.taskId}
+                            draggable={not busy}
+                            onDragStart={lambda (e: any) { e.dataTransfer.setData(
+                                "text/plain", task.taskId
+                            ); }}
+                        >
+                            <button
+                                className="check"
+                                aria-label={"Reopen " + task.title
+                                    if task.completed
+                                    else "Complete " + task.title}
+                                aria-pressed={task.completed}
+                                disabled={busy}
+                                onClick={lambda { Toggle(task); }}
+                            >
+                                {"✓" if task.completed else ""}
+                            </button>
+                            <span className={"dot " + CourseColor(task.course)}/>
+                            <button
+                                className="tray-title"
+                                disabled={busy}
+                                onClick={lambda { Edit(task); }}
+                            >
+                                <strong
+                                    className={"completed" if task.completed else ""}
                                 >
-                                    {"✓" if task.completed else ""}
-                                </button>
-                                <div className="task-body">
-                                    <div className="task-top">
-                                        <span className="course-tag">
-                                            {task.course or "PERSONAL"}
-                                        </span>
-                                        <span
-                                            className="priority"
-                                            data-priority={task.priority}
-                                        >
-                                            {task.priority} priority
-                                        </span>
-                                    </div>
-                                    <h3
-                                        className={"completed"
-                                            if task.completed
-                                            else ""}
-                                    >
-                                        {task.title}
-                                    </h3>
-                                    <p className="task-meta">
-                                        {str(task.estimateMinutes)}{" "}
-                                        min{" "}
-                                        <span>·</span>{" "}
-                                        Due{" "}
-                                        {DisplayDate(task.dueDate)}{" "}
-                                        <span>·</span>{" "}
-                                        Plan{" "}
-                                        {DisplayDate(task.plannedDate)}
-                                    </p>
-                                    {<p className="notes">{task.notes}</p>
-                                        if task.notes
-                                        else <span/>}
-                                    <div className="task-actions">
+                                    {task.title}
+                                </strong>
+                                <span>{task.course or "Personal"}</span>
+                            </button>
+                            <span className="duration">
+                                {str(task.estimateMinutes)} min
+                            </span>
+                        </article> for task in trayTasks
+                    ]}
+                </aside>
+                <section className="workspace" aria-label="Planner">
+                    <div className="toolbar">
+                        <h1>
+                            {new(Date, start + "T12:00:00").toLocaleDateString(
+                                "en-US", {"month": "long", "day": "numeric"}
+                            )} - {new(
+                                Date, days[len(days) - 1] + "T12:00:00"
+                            ).toLocaleDateString(
+                                "en-US",
+                                {"month": "long", "day": "numeric", "year": "numeric"}
+                            )}
+                        </h1>
+                        <button
+                            className="secondary"
+                            onClick={lambda { selectedDate = Today(); }}
+                        >
+                            Today
+                        </button>
+                        <button
+                            className="secondary arrow"
+                            aria-label="Previous week"
+                            onClick={lambda { selectedDate = ShiftDate(
+                                selectedDate, -7
+                            ); }}
+                        >
+                            ‹
+                        </button>
+                        <button
+                            className="secondary arrow"
+                            aria-label="Next week"
+                            onClick={lambda { selectedDate = ShiftDate(
+                                selectedDate, 7
+                            ); }}
+                        >
+                            ›
+                        </button>
+                        <select
+                            aria-label="Calendar days"
+                            value={weekMode}
+                            onChange={lambda (e: ChangeEvent) { weekMode = e.target.value; }}
+                        >
+                            <option value="7">Full week</option>
+                            <option value="5">Weekdays</option>
+                        </select>
+                        <button
+                            className="primary new-task"
+                            disabled={busy}
+                            onClick={NewTask}
+                        >
+                            ＋ New task
+                        </button>
+                    </div>
+                    {<div className="calendar-scroll" id="calendar-scroll">
+                        <div className="calendar" style={{"--days": weekMode}}>
+                            <div className="day-heading time-heading"/>
+                            {[
+                                <div className="day-heading" key={day}>
+                                    <span className={"today" if day == Today() else ""}>
+                                        {new(
+                                            Date, day + "T12:00:00"
+                                        ).toLocaleDateString(
+                                            "en-US",
+                                            {"weekday": "short", "day": "numeric"}
+                                        )}
+                                    </span>
+                                </div> for day in days
+                            ]}
+                            <div className="all-day-label">All-day / due</div>
+                            {[
+                                <div className="all-day" key={day}>
+                                    {[
                                         <button
-                                            className="quiet"
-                                            disabled={busy}
+                                            className="deadline"
+                                            key={task.taskId}
                                             onClick={lambda { Edit(task); }}
                                         >
-                                            Edit task
+                                            <span
+                                                className={"dot "
+                                                    + CourseColor(task.course)}
+                                            />
+                                            {task.title}
+                                            {" · due"
+                                                if task.dueDate == day
+                                                else " · planned"}
                                         </button>
+                                        for task in filteredTasks
+                                        if task.dueDate == day
+                                            or (
+                                                task.plannedDate == day
+                                                and not task.plannedTime
+                                            )
+                                    ]}
+                                </div> for day in days
+                            ]}
+                            <div className="time-axis">
+                                {[
+                                    <span
+                                        className="hour-label"
+                                        key={hour}
+                                        style={{"top": str(hour * 64) + "px"}}
+                                    >
+                                        {TimeLabel(hour * 60)}
+                                    </span> for hour in range(24)
+                                ]}
+                            </div>
+                            {[
+                                <div className="day-grid" key={day}>
+                                    {[
                                         <button
-                                            className="danger"
+                                            className="time-slot"
+                                            key={hour}
+                                            aria-label={"Add task on "
+                                                + DisplayDate(day)
+                                                + " at "
+                                                + TimeLabel(hour * 60)}
                                             disabled={busy}
-                                            onClick={lambda { Remove(task); }}
+                                            onClick={lambda { NewSlot(day, hour); }}
+                                            onDragOver={lambda (e: any) { e.preventDefault(); }}
+                                            onDrop={lambda (e: any) {
+                                                e.preventDefault();
+                                                Schedule(
+                                                    e.dataTransfer.getData(
+                                                        "text/plain"
+                                                    ),
+                                                    day,
+                                                    hour
+                                                );
+                                            }}
+                                        /> for hour in range(24)
+                                    ]}{[
+                                        <button
+                                            title={task.title
+                                                + " · "
+                                                + task.course
+                                                + " · "
+                                                + task.plannedTime
+                                                + " · "
+                                                + str(task.estimateMinutes)
+                                                + " min"}
+                                            aria-label={"Edit "
+                                                + task.title
+                                                + " at "
+                                                + task.plannedTime}
+                                            className={"event "
+                                                + CourseColor(task.course)
+                                                + (
+                                                    " completed"
+                                                        if task.completed
+                                                        else ""
+                                                )}
+                                            key={task.taskId}
+                                            draggable={not busy}
+                                            onDragStart={lambda (e: any) { e.dataTransfer.setData(
+                                                "text/plain", task.taskId
+                                            ); }}
+                                            onClick={lambda { Edit(task); }}
+                                            style={EventStyle(task, filteredTasks)}
                                         >
-                                            Delete
+                                            <strong>{task.title}</strong>
+                                            <span>
+                                                {TimeLabel(
+                                                    TimeMinutes(task.plannedTime)
+                                                )} - {TimeLabel(
+                                                    TimeMinutes(task.plannedTime)
+                                                        + task.estimateMinutes
+                                                )}
+                                            </span>
+                                            <span>{task.course or "Personal"}</span>
                                         </button>
+                                        for task in filteredTasks
+                                        if task.plannedDate == day and task.plannedTime
+                                    ]}{<div
+                                        className="now-line"
+                                        style={{
+                                            "top": str(nowMinutes * 64 / 60) + "px"
+                                        }}
+                                    >
+                                        <span>{TimeLabel(nowMinutes)}</span>
                                     </div>
-                                </div>
-                            </article> for task in filteredTasks
-                        ]}
+                                        if day == Today()
+                                        else <span/>}
+                                </div> for day in days
+                            ]}
+                        </div>
                     </div>
+                        if tab == "calendar"
+                        else <div className="tasks-view">
+                            <div className="section-heading">
+                                <h2>
+                                    Tasks{" "}
+                                    <span className="count">
+                                        {str(len(filteredTasks))}
+                                    </span>
+                                </h2>
+                                <select
+                                    aria-label="Filter task status"
+                                    value={status}
+                                    onChange={lambda (e: ChangeEvent) { status = e.target.value; }}
+                                >
+                                    <option value="open">Open tasks</option>
+                                    <option value="done">Completed</option>
+                                    <option value="all">All tasks</option>
+                                </select>
+                            </div>
+                            {<p className="empty">No tasks match your filters.</p>
+                                if not loading and len(filteredTasks) == 0
+                                else <span/>}
+                            {[
+                                <article className="task-card" key={task.taskId}>
+                                    <button
+                                        className="check"
+                                        aria-label={"Reopen " + task.title
+                                            if task.completed
+                                            else "Complete " + task.title}
+                                        aria-pressed={task.completed}
+                                        disabled={busy}
+                                        onClick={lambda { Toggle(task); }}
+                                    >
+                                        {"✓" if task.completed else ""}
+                                    </button>
+                                    <div className="task-body">
+                                        <div className="task-top">
+                                            <span
+                                                className={"course-tag "
+                                                    + CourseColor(task.course)}
+                                            >
+                                                {task.course or "Personal"}
+                                            </span>
+                                            <span
+                                                className="priority"
+                                                data-priority={task.priority}
+                                            >
+                                                {task.priority} priority
+                                            </span>
+                                        </div>
+                                        <h3
+                                            className={"completed"
+                                                if task.completed
+                                                else ""}
+                                        >
+                                            {task.title}
+                                        </h3>
+                                        <p className="task-meta">
+                                            {str(task.estimateMinutes)} min · Due {DisplayDate(
+                                                task.dueDate
+                                            )} · Plan {DisplayDate(task.plannedDate)} {task.plannedTime}
+                                        </p>
+                                        {<p className="notes">{task.notes}</p>
+                                            if task.notes
+                                            else <span/>}
+                                        <div className="task-actions">
+                                            <button
+                                                className="quiet"
+                                                disabled={busy}
+                                                onClick={lambda { Edit(task); }}
+                                            >
+                                                Edit task
+                                            </button>
+                                            <button
+                                                className="danger"
+                                                disabled={busy}
+                                                onClick={lambda { Remove(task); }}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </article> for task in filteredTasks
+                            ]}
+                        </div>}
                 </section>
-                <aside className="day-panel">
-                    <p className="eyebrow">MAKE SPACE FOR TODAY</p>
-                    <h2>Your daily plan</h2>
-                    <Field
-                        label="Plan for"
-                        value={selectedDate}
-                        kind="date"
-                        onChange={lambda (value: str) { selectedDate = value; }}
-                    />
-                    <button
-                        className="quiet"
-                        onClick={lambda { selectedDate = Today(); }}
-                    >
-                        Jump to today
-                    </button>
-                    <div className="workload">
-                        <strong>{str(minutes)}</strong>
-                        <span>minutes remaining</span>
-                        <p>
-                            {str(len(dayOpenTasks))} open / {str(len(dayTasks))} planned
-                        </p>
-                    </div>
-                    <p className="daily-date">{DisplayDate(selectedDate)}</p>
-                    {<p className="muted">
-                        A clear day. Plan a task when you're ready.
-                    </p>
-                        if len(dayTasks) == 0
-                        else <span/>}
-                    <div className="daily-list">
-                        {[
-                            <div className="daily-task" key={task.taskId}>
-                                <span>{"✓" if task.completed else "○"}</span>
-                                <div>
-                                    <strong>{task.title}</strong>
-                                    <p>
-                                        {task.course or "Personal"} · {str(
-                                            task.estimateMinutes
-                                        )} min
-                                    </p>
-                                </div>
-                            </div> for task in dayTasks
-                        ]}
-                    </div>
-                    <button className="secondary" disabled={busy} onClick={NewTask}>
-                        + Plan a task
-                    </button>
-                </aside>
             </div>
-            {<div className="modal-backdrop">
+            {<div
+                className="modal-backdrop"
+                onClick={lambda (e: any) { if e.target == e.currentTarget and not busy {
+                    editing = False;
+                }}}
+                onKeyDown={lambda (e: any) { if e.key == "Escape" and not busy {
+                    editing = False;
+                }}}
+            >
                 <section
                     className="editor"
                     role="dialog"
@@ -463,6 +785,12 @@ def:pub app -> JsxElement {
                                 kind="date"
                                 onChange={lambda (value: str) { plannedDate = value; }}
                             />
+                            <Field
+                                label="Planned time (optional)"
+                                value={plannedTime}
+                                kind="time"
+                                onChange={lambda (value: str) { plannedTime = value; }}
+                            />
                             <label className="field">
                                 <span>Priority</span>
                                 <select
@@ -501,6 +829,5 @@ def:pub app -> JsxElement {
             </div>
                 if editing
                 else <span/>}
-            <footer className="footer">One task at a time. You've got this.</footer>
         </main>;
 }
