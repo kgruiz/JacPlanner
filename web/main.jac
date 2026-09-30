@@ -62,7 +62,7 @@ def TimeMinutes(value: str) -> int {
 }
 
 def TimeLabel(minutes: int) -> str {
-    hour = int(minutes / 60);
+    hour = int(minutes / 60) % 24;
     minute = minutes % 60;
     return str(hour % 12 or 12)
         + ":"
@@ -76,9 +76,7 @@ def EventStyle(task: any, tasks: list[any]) -> dict[str, str] {
         for item in tasks
         if item.plannedDate == task.plannedDate and item.plannedTime
     ];
-    dayTasks.sort(
-        key=lambda (item: TaskView) { return item.plannedTime + item.taskId; }
-    );
+    dayTasks.sort(key=lambda (item: any) { return item.plannedTime + item.taskId; });
     laneEnds: list[int] = [];
     selectedLane = 0;
     for item in dayTasks {
@@ -209,14 +207,16 @@ def:pub app -> JsxElement {
         plannedTime = str(hour).zfill(2) + ":00";
     }
 
-    async def Schedule(taskId: str, day: str, hour: int) {
+    async def Schedule(scheduledTaskId: str, day: str, hour: int) {
         if busy {
             return;
         }
         busy = True;
         error = "";
         try {
-            result = await ScheduleTask(taskId, day, str(hour).zfill(2) + ":00");
+            result = await ScheduleTask(
+                scheduledTaskId, day, str(hour).zfill(2) + ":00"
+            );
             if result.ok {
                 await Refresh();
             } else {
