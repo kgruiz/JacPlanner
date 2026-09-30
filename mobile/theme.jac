@@ -6,7 +6,7 @@ glob:pub styles = StyleSheet.create(
              "scroll": {"flex": 1, "minHeight": 0},
              "header": {
                  "paddingHorizontal": 20,
-                 "paddingTop": 62,
+                 "paddingTop": 20,
                  "paddingBottom": 14,
                  "gap": 18
              },

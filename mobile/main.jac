@@ -576,16 +576,22 @@ def:pub app -> JsxElement {
                                     numberOfLines={1}
                                     style={{
                                         "color": CourseColor(block["task"].course),
-                                        "fontSize": 13
+                                        "fontSize": 12,
+                                        "lineHeight": 18
                                     }}
                                 >
-                                    {block["task"].course or "Personal"}
+                                    {block["task"].course or "Personal"}{" · "
+                                        + TimeLabel(block["minute"])
+                                        if block["task"].estimateMinutes <= 45
+                                        else ""}
                                 </Text>
-                                <Text numberOfLines={1} style={styles.detail}>
+                                {<Text numberOfLines={1} style={styles.detail}>
                                     {TimeLabel(block["minute"])} – {TimeLabel(
                                         block["minute"] + block["task"].estimateMinutes
                                     )}
                                 </Text>
+                                    if block["task"].estimateMinutes > 45
+                                    else <View/>}
                             </Pressable> for block in blocks
                         ]}{<View
                             pointerEvents="none"
