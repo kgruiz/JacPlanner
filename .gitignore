@@ -1,0 +1,6 @@
+.jac/
+node_modules/
+dist/
+.DS_Store
+.env
+jac.local.toml

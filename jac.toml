@@ -1,0 +1,54 @@
+[project]
+name = "JacPlanner"
+version = "0.1.0"
+description = "Coursework tasks, priorities, and a daily plan"
+default-app = "web"
+jac-version = "==0.37.23"
+
+[apps.web]
+kind = "web-app"
+entry-point = "web.main"
+
+[apps.planner]
+kind = "service"
+entry-point = "core.planner"
+
+[apps.mobile]
+kind = "mobile"
+entry-point = "mobile.main"
+platform = "ios"
+
+[apps.mobile.dependencies.npm]
+react-native-web = "^0.19.13"
+
+[apps.cli]
+kind = "cli"
+entry-point = "cli.main"
+
+[dependencies.npm]
+react = "^19.2.0"
+react-dom = "^19.2.0"
+react-router-dom = "^6.22.0"
+react-error-boundary = "^5.0.0"
+"@tanstack/react-form" = "^1.33.0"
+zod = "^4.3.6"
+
+[dependencies.npm.dev]
+vite = "^6.4.1"
+"@vitejs/plugin-react" = "^4.7.0"
+typescript = "^5.3.3"
+"@types/react" = "^19.2.0"
+"@types/react-dom" = "^19.2.0"
+
+[dev-dependencies]
+watchdog = ">=3.0.0"
+
+[test]
+directories = ["core", "cli"]
+
+[serve]
+host = "127.0.0.1"
+
+[client.app_meta_data]
+title = "JacPlanner"
+description = "A calmer plan for your coursework"
