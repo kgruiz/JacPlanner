@@ -1,5 +1,15 @@
 # JacPlanner implementation plan
 
+## Calendar redesign
+
+The selected designs are C1 for web and M1 for mobile. Replace the original dashboard with a minimal white calendar, course colors, thin grid lines, and compact task controls.
+
+- Web: weekly time grid, unscheduled task tray, deadline and untimed-task rows, week navigation, course filtering, task search, and an alternate task list. Keep weekends reachable and all existing edit/delete/complete workflows.
+- Mobile: daily timeline, seven-day date strip, deadline summary, expandable unscheduled tasks, and Calendar/Tasks tabs. Retain native controls, task entry, completion, and refresh/error handling.
+- Shared scheduling: add optional `plannedTime` in local `HH:MM` format. Duration comes from estimated minutes. Require a plan date for a time and reject blocks that cross midnight. Existing dated tasks without a time remain visible. Preserve saved data and support scheduling from the CLI.
+- Backend/CLI, web, and mobile are implemented by separate GPT-6.1 Sol agents. The main agent owns integration verification and root documentation.
+- Verify time validation, persistence, browser creation/editing/scheduling, narrow layouts, native compilation, and cross-client reads. Stop the test services after verification. Do not push or submit.
+
 Build a local, single-user coursework planner for Kaden Gruizenga using Jac 0.37.23. No AI provider is required. Validate the mobile app on an iPhone simulator. Leave the UMID as a README placeholder.
 
 ## Features
