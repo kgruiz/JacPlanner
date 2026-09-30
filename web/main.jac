@@ -456,6 +456,19 @@ def:pub app -> JsxElement {
         },
         [editing]
     );
+    useEffect(
+        lambda {
+
+            if editing and not busy {
+                editor: any = document.getElementById("task-editor");
+
+                if editor and not editor.contains(document.activeElement) {
+                    editor.querySelector("input").focus();
+                }
+            }
+        },
+        [editing, busy]
+    );
 
     return
         <main className="shell">

@@ -13,6 +13,12 @@ const effect = new Function(
   "_jac", "useEffect", "__jacS_editing", "__jacS_busy", "document",
   compiled.slice(start, compiled.indexOf(ending, start) + ending.length),
 );
+const recoveryStart = compiled.indexOf("  useEffect(() => {", compiled.indexOf(ending, start) + ending.length);
+const recoveryEnding = "  }, [__jacS_editing.val, __jacS_busy.val]);";
+const recoverFocus = new Function(
+  "useEffect", "__jacS_editing", "__jacS_busy", "document",
+  compiled.slice(recoveryStart, compiled.indexOf(recoveryEnding, recoveryStart) + recoveryEnding.length),
+);
 
 function EditorHarness() {
   let cleanup;
@@ -45,6 +51,7 @@ function EditorHarness() {
 
   return {
     document, editing, busy, opener, title, save, editor, fallback,
+    recoverFocus: () => recoverFocus(callback => callback(), editing, busy, document),
     close: () => cleanup(),
     key(key, shiftKey = false) {
       const event = { key, shiftKey, prevented: false, preventDefault() { this.prevented = true; } };
@@ -85,4 +92,24 @@ test("pending saves retain focus and suppress Escape with the live busy value", 
   app.opener.isConnected = false;
   app.close();
   expect(app.document.activeElement).toBe(app.fallback);
+});
+
+test("failed saves restore lost dialog focus without moving an active editor control", () => {
+  const app = EditorHarness();
+  app.busy.val = true;
+  app.document.activeElement = app.opener;
+  app.recoverFocus();
+
+  expect(app.document.activeElement).toBe(app.opener);
+  app.busy.val = false;
+  app.recoverFocus();
+  expect(app.document.activeElement).toBe(app.title);
+  app.document.activeElement = app.save;
+  app.recoverFocus();
+  expect(app.document.activeElement).toBe(app.save);
+  app.editing.val = false;
+  app.document.activeElement = app.opener;
+  app.recoverFocus();
+  expect(app.document.activeElement).toBe(app.opener);
+  app.close();
 });
