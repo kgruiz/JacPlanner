@@ -81,9 +81,11 @@ The focus is a consistent workflow across all three interfaces: capture work, es
 jac check
 jac check core web mobile cli --lint
 jac test
+jac build --as client web
+bun test web
 ```
 
-Backend tests use temporary isolated stores and check CRUD, validation, and persistence after reopening the server. CLI tests cover calendar validation and safe task-ID selection. Generated dependencies, simulator projects, builds, and local data stay out of Git.
+Backend tests use temporary isolated stores and check CRUD, validation, and persistence after reopening the server. CLI tests cover calendar validation and safe task-ID selection. Web regression tests exercise compiler-emitted calendar helpers and editor focus behavior, so build the web client before running them. They cover short and overlapping blocks, midnight bounds, date navigation across daylight saving, leap day, and New Year, and keyboard focus during editing. Generated dependencies, simulator projects, builds, and local data stay out of Git.
 
 ## Verification and limitations
 
@@ -93,6 +95,7 @@ Verified on 09/30/2026 with Jac 0.37.23:
 - Eight backend and CLI tests pass, including time validation, midnight limits, preserving start times during older-client edits, and persistence after restart.
 - Fresh-checkout setup and server restart persistence were verified before the calendar redesign. The redesign uses the same dependencies and startup commands.
 - The redesigned web calendar was checked for task creation, time editing, overlapping blocks, drag scheduling, untimed weekend tasks, search/course/status filters, completion/reopening, and phone-width layout.
+- Additional web QA covered form limits, literal HTML and Unicode, New Year dates, midnight scheduling, canceled edits and deletion, 390px layout, keyboard navigation, delayed saves, and simulated connection failures. Calendar and editor regressions run with `bun test web` after building the client.
 - Web-created time blocks can be read and rescheduled through the CLI and mobile interface. Mobile time editing, invalid-time feedback, completion, and reopening were exercised through its browser target against the same server.
 - The redesigned native iOS timeline launches and reads shared tasks on an iOS 26.5 simulator. The unsigned native build succeeds. Native taps were not automated; the generated Expo template still requires the documented iOS 26.5 workaround for launch, and unsigned builds may show SecureStore entitlement warnings.
 
