@@ -32,7 +32,11 @@ Build a local, single-user coursework planner for Kaden Gruizenga using Jac 0.37
 - SetCompleted(taskId: str, completed: bool) -> TaskResult
 - DeleteTask(taskId: str) -> TaskResult
 
-SaveTask creates when taskId is empty, otherwise replaces editable fields and preserves completion. Blank dates mean unscheduled/no deadline. Server rejects invalid dates, empty titles, unknown priorities, estimates outside 1..1440, and unknown IDs. UI awaits imported service functions and reads typed results. SQLite in the ignored .jac/ directory provides transactional local persistence; JACPLANNER_DB may override its path for isolated tests.
+SaveTask creates when taskId is empty, otherwise replaces editable fields and preserves completion. Blank dates mean unscheduled/no deadline. Server rejects invalid dates, empty titles, unknown priorities, estimates outside 1..1440, and unknown IDs. UI awaits imported service functions and reads typed results. Task nodes connected to the server's root use Jac's graph persistence; taskId comes from jid(). Clients receive TaskView objects, never import service-owned nodes. Tests use isolated Jac runtime stores.
+
+## Reference decisions
+
+Follow the Canvas-linked Day Planner tutorial's graph persistence, typed endpoints, and reactive state patterns, with current 0.37.23 syntax. The multi-app mysite example informs separate web/mobile/CLI entry points. Public endpoints serve one local personal workspace; no account setup or AI model is required. Keep the development server local to the Mac for simulator testing.
 
 ## Acceptance checks
 
