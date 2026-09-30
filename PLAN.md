@@ -14,7 +14,7 @@ Build a local, single-user coursework planner for Kaden Gruizenga using Jac 0.37
 
 ## Features
 
-- Tasks have a title, course, due date, low/medium/high priority, estimated minutes, planned date, notes, and completion status.
+- Tasks have a title, course, due date, low/medium/high priority, estimated minutes, planned date, planned time, notes, and completion status.
 - The web dashboard creates and edits tasks, filters by course/status, and shows a chosen day's plan and estimated workload.
 - The native mobile app shows a daily plan, adds tasks, and completes or reopens tasks.
 - The CLI adds, lists, schedules, completes, and reopens tasks against the same server.
@@ -31,22 +31,23 @@ Build a local, single-user coursework planner for Kaden Gruizenga using Jac 0.37
 
 `core/models.jac` defines these public wire objects:
 
-- TaskView: taskId: str, title: str, course: str, dueDate: str, priority: str, estimateMinutes: int, plannedDate: str, notes: str, completed: bool.
+- TaskView: taskId: str, title: str, course: str, dueDate: str, priority: str, estimateMinutes: int, plannedDate: str, plannedTime: str, notes: str, completed: bool.
 - TaskList: tasks: list[TaskView].
 - TaskResult: ok: bool, error: str, task: TaskView | None.
 
 `core/planner.jac` is the `planner` service entry and exposes public functions:
 
 - ListTasks() -> TaskList
-- SaveTask(taskId: str = "", title: str = "", course: str = "", dueDate: str = "", priority: str = "medium", estimateMinutes: int = 30, plannedDate: str = "", notes: str = "") -> TaskResult
+- SaveTask(taskId: str = "", title: str = "", course: str = "", dueDate: str = "", priority: str = "medium", estimateMinutes: int = 30, plannedDate: str = "", notes: str = "", plannedTime: str | None = None) -> TaskResult
+- ScheduleTask(taskId: str, plannedDate: str = "", plannedTime: str = "") -> TaskResult
 - SetCompleted(taskId: str, completed: bool) -> TaskResult
 - DeleteTask(taskId: str) -> TaskResult
 
-SaveTask creates when taskId is empty, otherwise replaces editable fields and preserves completion. Blank dates mean unscheduled/no deadline. Server rejects invalid dates, empty titles, unknown priorities, estimates outside 1..1440, and unknown IDs. UI awaits imported service functions and reads typed results. Task nodes connected to the server's root use Jac's graph persistence; taskId comes from jid(). Clients receive TaskView objects, never import service-owned nodes. Tests use isolated Jac runtime stores.
+SaveTask creates when taskId is empty, otherwise replaces editable fields and preserves completion. Omitting plannedTime preserves an existing time if the plan date is nonblank; clearing the date clears the omitted time. Blank dates mean unscheduled/no deadline. Server rejects invalid dates and times, empty titles, unknown priorities, estimates outside 1..1440, blocks crossing midnight, and unknown IDs. UI awaits imported service functions and reads typed results. Task nodes connected to the server's root use Jac's graph persistence; taskId comes from jid(). Clients receive TaskView objects, never import service-owned nodes. Tests use isolated Jac runtime stores.
 
 ## Reference decisions
 
-Follow the Canvas-linked Day Planner tutorial's graph persistence, typed endpoints, and reactive state patterns, with current 0.37.23 syntax. The multi-app mysite example informs separate web/mobile/CLI entry points. Public endpoints serve one local personal workspace; no account setup or AI model is required. Keep the development server local to the Mac for simulator testing.
+Follow the Canvas-linked Day Planner tutorial's graph persistence, typed endpoints, and reactive state patterns, with current 0.37.23 syntax. The multi-app mysite example informs separate web/mobile/CLI entry points. Public endpoints serve one personal workspace; no account setup or AI model is required. The backend uses loopback, but Jac's development web proxy binds to all interfaces; document this limitation.
 
 ## Acceptance checks
 

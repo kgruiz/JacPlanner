@@ -29,18 +29,20 @@ The environment creation is a one-time step. It avoids an observed Jac 0.37.23 b
 
 Open **http://127.0.0.1:8000**. Keep that terminal running while using the web, CLI, or simulator. Stop it with Control-C when finished. Jac manages a persistent Postgres store for the project automatically. Task data survives server restarts and is separate from the source files in Git.
 
-Use the dashboard to add and edit tasks, filter coursework, choose a plan date, and complete or reopen work. Each task has a course, optional deadline, priority, estimated minutes, optional plan date, and notes.
+The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. The Tasks view provides a searchable list for editing, completing, reopening, and deleting work. Each task has a course, optional deadline, priority, estimated minutes, optional plan date and start time, and notes.
+
+Start times use local wall-clock time. Estimated minutes determine the block's length. A time requires a plan date, and a block cannot extend past midnight. Tasks with a date but no time remain available as untimed work for that day. Deadlines and planned work are separate: choosing a work session does not change the deadline.
 
 ## CLI
 
 Run these from a second terminal in the repository root while the server is running. Dates in commands use `YYYY-MM-DD`; `today` is also accepted for plan dates.
 
 ```sh
-jac run cli -- add "Finish project proposal" --course "EECS 449" --priority high --minutes 60 --due 2026-10-05 --day today
+jac run cli -- add "Finish project proposal" --course "EECS 449" --priority high --minutes 60 --due 2026-10-05 --day today --time 10:00
 jac run cli -- list --day today --status open
 jac run cli -- list --course "EECS 449"
 jac run cli -- --json list
-jac run cli -- schedule TASK_ID 2026-10-01
+jac run cli -- schedule TASK_ID 2026-10-01 --time 14:00
 jac run cli -- schedule TASK_ID none
 jac run cli -- complete TASK_ID
 jac run cli -- reopen TASK_ID
@@ -65,11 +67,11 @@ The mobile app uses Jac's native UI primitives and an Expo/React Native project 
 | --- | --- | --- |
 | Server | `core/planner.jac` | Validates changes and persists task nodes attached to the Jac root |
 | Wire models | `core/models.jac` | Typed task and operation results shared across app boundaries |
-| Web | `web/main.jac` | Coursework dashboard and daily planning |
-| Mobile | `mobile/main.jac` | Native daily plan, quick task entry, completion and reopening |
+| Web | `web/main.jac` | Weekly calendar, scheduling, and task management |
+| Mobile | `mobile/main.jac` | Native daily timeline, task entry, scheduling, and completion |
 | CLI | `cli/main.jac` | Terminal task management through the service bridge |
 
-`jac.toml` declares four apps and chooses `web` as the default. The planner service exposes `ListTasks`, `SaveTask`, `SetCompleted`, and `DeleteTask`. Clients await typed Jac bridge calls. They receive task views rather than direct access to persistent nodes. The web server mounts the planner at `/api/planner`.
+`jac.toml` declares four apps and chooses `web` as the default. The planner service exposes `ListTasks`, `SaveTask`, `ScheduleTask`, `SetCompleted`, and `DeleteTask`. Clients await typed Jac bridge calls. They receive task views rather than direct access to persistent nodes. The web server mounts the planner at `/api/planner`.
 
 The focus is a consistent workflow across all three interfaces: capture work, estimate it, choose a day, and finish it. There is no sample task data inserted automatically.
 
@@ -87,12 +89,12 @@ Backend tests use temporary isolated stores and check CRUD, validation, and pers
 
 Verified on 09/30/2026 with Jac 0.37.23:
 
-- All four apps pass compiler checks. Source lint reports no errors; the eight-field save API has a parameter-count warning.
-- Six backend and CLI tests pass.
-- A fresh local checkout installs with the commands above, serves the dashboard, and preserves a task across a server restart.
-- Browser CRUD, course/status filtering, daily workload, date changes, validation messages, phone-width layout, and recovery after a server outage were exercised.
-- Browser-created tasks can be changed through the CLI and the mobile interface. Mobile add, complete, and reopen workflows were exercised through its browser target against the same server.
-- The native iOS app builds, launches, and reads the shared task on an iOS 26.5 simulator. Native taps were not automated because Device Hub control timed out. The generated Expo template failed to launch on iOS 27; use iOS 26.5 with the documented build workaround.
+- All four apps pass compiler checks. Source lint reports no errors; the save API has a parameter-count warning.
+- Eight backend and CLI tests pass, including time validation, midnight limits, preserving start times during older-client edits, and persistence after restart.
+- Fresh-checkout setup and server restart persistence were verified before the calendar redesign. The redesign uses the same dependencies and startup commands.
+- The redesigned web calendar was checked for task creation, time editing, overlapping blocks, drag scheduling, untimed weekend tasks, search/course/status filters, completion/reopening, and phone-width layout.
+- Web-created time blocks can be read and rescheduled through the CLI and mobile interface. Mobile time editing, invalid-time feedback, completion, and reopening were exercised through its browser target against the same server.
+- The redesigned native iOS timeline launches and reads shared tasks on an iOS 26.5 simulator. The unsigned native build succeeds. Native taps were not automated; the generated Expo template still requires the documented iOS 26.5 workaround for launch, and unsigned builds may show SecureStore entitlement warnings.
 
 The planner needs the server running and has no offline mode or account isolation. Before submitting, replace the UMID placeholder and try the native controls in Device Hub.
 
