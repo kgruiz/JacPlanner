@@ -1,3 +1,4 @@
+import from react { useEffect }
 import from "@jac/mobui" {
     View,
     Text,
@@ -7,7 +8,8 @@ import from "@jac/mobui" {
     KeyboardAvoidingView,
     Keyboard,
     Platform,
-    ActivityIndicator
+    ActivityIndicator,
+    useWindowDimensions
 }
 import from "@jac/runtime" { BridgeError }
 import from ..core.planner { ListTasks, SaveTask, SetCompleted, TaskView }
@@ -92,6 +94,12 @@ def TimeLabel(minutes: int) -> str {
         + (" AM" if hour < 12 else " PM");
 }
 
+def CurrentMinutes -> int {
+    now = new(Date);
+
+    return int(now.getHours() * 60 + now.getMinutes());
+}
+
 def:pub app -> JsxElement {
     has tasks: list[TaskView] = [],
         selectedDate: str = Today(),
@@ -109,7 +117,8 @@ def:pub app -> JsxElement {
         plannedTime: str = "",
         editingId: str = "",
         tab: str = "Calendar",
-        trayOpen: bool = False;
+        trayOpen: bool = False,
+        nowMinute: int = CurrentMinutes();
 
     async def Refresh {
         loading = True;
@@ -273,8 +282,16 @@ def:pub app -> JsxElement {
     ];
     date = new(Date, selectedDate + "T12:00:00");
     weekStart = ShiftDate(selectedDate, -int((date.getDay() + 6) % 7));
-    now = new(Date);
-    nowMinute = int(now.getHours() * 60 + now.getMinutes());
+    windowSize = useWindowDimensions();
+    useEffect(
+        lambda {
+            timer = globalThis.setInterval(
+                lambda { nowMinute = CurrentMinutes(); }, 30000
+            );
+            return lambda { globalThis.clearInterval(timer); };
+        },
+        []
+    );
     firstHour = 9;
     lastHour = 17;
 
@@ -311,7 +328,10 @@ def:pub app -> JsxElement {
 
     return
         <KeyboardAvoidingView
-            style={styles.screen}
+            style={[
+                styles.screen,
+                {"height": windowSize.height} if Platform.OS == "web" else {}
+            ]}
             behavior={"padding" if Platform.OS == "ios" else "height"}
         >
             <View style={styles.header}>
@@ -403,6 +423,7 @@ def:pub app -> JsxElement {
                 </View>
             </View>
             <ScrollView
+                style={styles.scroll}
                 contentContainerStyle={styles.body}
                 keyboardShouldPersistTaps="handled"
             >

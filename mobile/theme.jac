@@ -2,7 +2,8 @@ import from "@jac/mobui" { StyleSheet }
 
 glob:pub styles = StyleSheet.create(
          {
-             "screen": {"flex": 1, "backgroundColor": "#FFFFFF"},
+             "screen": {"flex": 1, "minHeight": 0, "backgroundColor": "#FFFFFF"},
+             "scroll": {"flex": 1, "minHeight": 0},
              "header": {
                  "paddingHorizontal": 20,
                  "paddingTop": 62,

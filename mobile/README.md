@@ -58,7 +58,7 @@ Use an iOS 26 simulator listed on your Mac if `iPhone 17 Pro,OS=26.5` is unavail
 - **Unscheduled** expands above the tabs to show tasks without a planned day. Tap a title to schedule it.
 - **Refresh** reloads changes from the browser or CLI. Errors retain the form draft so it can be retried.
 
-Course colors use the same deterministic character-sum palette as the web view. Deadline notices use open tasks due on the selected day or the following day. The red current-time line appears only on today's calendar and updates when the view renders or refreshes.
+Course colors use the same deterministic character-sum palette as the web view. Deadline notices use open tasks due on the selected day or the following day. The red current-time line appears only on today's calendar and updates every 30 seconds.
 
 If the server is unavailable, the app displays an error and allows refreshing. This app requires the local server and does not maintain an offline copy of tasks. Task deletion is available on the web dashboard.
 
