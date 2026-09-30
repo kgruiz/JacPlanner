@@ -13,7 +13,7 @@ A personal coursework planner built with Jac. Organize assignments by course, se
 - `uv` and Python **3.14** for the project environment.
 - For iPhone simulator use: macOS, Xcode with an installed iOS simulator runtime, and the native build prerequisites described in [mobile/README.md](mobile/README.md).
 
-No AI API key or account setup is needed. This is a single-user app intended to run locally on your Mac. The server binds to `127.0.0.1` and exposes the planner without authentication.
+No AI API key or account setup is needed. This is a single-user app without authentication. The backend binds to `127.0.0.1`, but Jac 0.37.23 launches its development web proxy on all network interfaces, so the default development session can expose planner data to your local network. Run it on a trusted network and stop it when finished.
 
 ## Start the web app and server
 
