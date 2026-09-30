@@ -70,6 +70,14 @@ def TimeLabel(minutes: int) -> str {
         + (" AM" if hour < 12 else " PM");
 }
 
+def EventHeight(task: any) -> float {
+    return max(28.0, task.estimateMinutes * 64 / 60);
+}
+
+def EventTop(task: any) -> float {
+    return min(TimeMinutes(task.plannedTime) * 64 / 60, 1536 - EventHeight(task));
+}
+
 def EventStyle(task: any, tasks: list[any]) -> dict[str, str] {
     dayTasks = [
         item
@@ -77,27 +85,41 @@ def EventStyle(task: any, tasks: list[any]) -> dict[str, str] {
         if item.plannedDate == task.plannedDate and item.plannedTime
     ];
     dayTasks.sort(key=lambda (item: any) { return item.plannedTime + item.taskId; });
-    laneEnds: list[int] = [];
+    dayTasks.sort(key=lambda (item: any) { return EventTop(item); });
+    laneEnds: list[float] = [];
     selectedLane = 0;
+    selectedGroup = False;
+
     for item in dayTasks {
-        start = TimeMinutes(item.plannedTime);
+        start = EventTop(item);
+
+        if laneEnds and start >= max(laneEnds) {
+
+            if selectedGroup {
+                break;
+            }
+
+            laneEnds = [];
+        }
+
         lane = 0;
         while lane < len(laneEnds) and laneEnds[lane] > start {
             lane += 1;
         }
         if lane == len(laneEnds) {
-            laneEnds = laneEnds + [start + item.estimateMinutes];
+            laneEnds = laneEnds + [start + EventHeight(item)];
         } else {
-            laneEnds[lane] = start + item.estimateMinutes;
+            laneEnds[lane] = start + EventHeight(item);
         }
         if item.taskId == task.taskId {
             selectedLane = lane;
+            selectedGroup = True;
         }
     }
     laneCount = max(1, len(laneEnds));
     return {
-        "top": str(TimeMinutes(task.plannedTime) * 64 / 60) + "px",
-        "height": str(max(28.0, task.estimateMinutes * 64 / 60)) + "px",
+        "top": str(EventTop(task)) + "px",
+        "height": str(EventHeight(task)) + "px",
         "left": "calc(" + str(selectedLane * 100 / laneCount) + "% + 5px)",
         "width": "calc(" + str(100 / laneCount) + "% - 10px)"
     };
