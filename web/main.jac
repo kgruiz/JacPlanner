@@ -362,7 +362,10 @@ def:pub app -> JsxElement {
                 <nav aria-label="Planner views">
                     <button
                         className={"nav-tab active" if tab == "calendar" else "nav-tab"}
-                        onClick={lambda { tab = "calendar"; }}
+                        onClick={lambda {
+                            tab = "calendar";
+                            status = "open";
+                        }}
                     >
                         Calendar
                     </button>
