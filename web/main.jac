@@ -196,6 +196,10 @@ def:pub app -> JsxElement {
     }
 
     def Edit(task: TaskView) {
+        if busy {
+            return;
+        }
+
         taskId = task.taskId;
         title = task.title;
         course = task.course;
@@ -210,6 +214,10 @@ def:pub app -> JsxElement {
     }
 
     def NewTask {
+        if busy {
+            return;
+        }
+
         taskId = "";
         title = "";
         course = "";
@@ -252,6 +260,10 @@ def:pub app -> JsxElement {
     }
 
     async def Save {
+        if busy {
+            return;
+        }
+
         if not estimate.isdigit() {
             error = "Estimated minutes must be a whole number from 1 to 1440.";
 
@@ -287,6 +299,10 @@ def:pub app -> JsxElement {
     }
 
     async def Toggle(task: TaskView) {
+        if busy {
+            return;
+        }
+
         busy = True;
         error = "";
 
@@ -306,6 +322,10 @@ def:pub app -> JsxElement {
     }
 
     async def Remove(task: TaskView) {
+        if busy {
+            return;
+        }
+
         if not window.confirm("Delete " + task.title + "? This cannot be undone.") {
             return;
         }
@@ -557,6 +577,7 @@ def:pub app -> JsxElement {
                                         <button
                                             className="deadline"
                                             key={task.taskId}
+                                            disabled={busy}
                                             onClick={lambda { Edit(task); }}
                                         >
                                             <span
@@ -642,6 +663,7 @@ def:pub app -> JsxElement {
                                             onDragStart={lambda (e: any) { e.dataTransfer.setData(
                                                 "text/plain", task.taskId
                                             ); }}
+                                            disabled={busy}
                                             onClick={lambda { Edit(task); }}
                                             style={EventStyle(task, filteredTasks)}
                                         >
@@ -790,69 +812,71 @@ def:pub app -> JsxElement {
                             Save();
                         }}
                     >
-                        <Field
-                            label="Title"
-                            value={title}
-                            required={True}
-                            onChange={lambda (value: str) { title = value; }}
-                        />
-                        <Field
-                            label="Course"
-                            value={course}
-                            onChange={lambda (value: str) { course = value; }}
-                        />
-                        <div className="form-grid">
+                        <fieldset className="editor-fields" disabled={busy}>
                             <Field
-                                label="Due date (optional)"
-                                value={dueDate}
-                                kind="date"
-                                onChange={lambda (value: str) { dueDate = value; }}
-                            />
-                            <Field
-                                label="Planned date (optional)"
-                                value={plannedDate}
-                                kind="date"
-                                onChange={lambda (value: str) { plannedDate = value; }}
-                            />
-                            <Field
-                                label="Planned time (optional)"
-                                value={plannedTime}
-                                kind="time"
-                                onChange={lambda (value: str) { plannedTime = value; }}
-                            />
-                            <label className="field">
-                                <span>Priority</span>
-                                <select
-                                    value={priority}
-                                    onChange={lambda (e: ChangeEvent) { priority = e.target.value; }}
-                                >
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </label>
-                            <Field
-                                label="Estimated minutes (1-1440)"
-                                value={estimate}
-                                kind="number"
+                                label="Title"
+                                value={title}
                                 required={True}
-                                onChange={lambda (value: str) { estimate = value; }}
+                                onChange={lambda (value: str) { title = value; }}
                             />
-                        </div>
-                        <label className="field">
-                            <span>Notes</span>
-                            <textarea
-                                rows={3}
-                                value={notes}
-                                onChange={lambda (e: ChangeEvent) { notes = e.target.value; }}
+                            <Field
+                                label="Course"
+                                value={course}
+                                onChange={lambda (value: str) { course = value; }}
                             />
-                        </label>
-                        {<p className="error" role="alert">{error}</p>
-                            if error
-                            else <span/>}
-                        <button className="primary" type="submit" disabled={busy}>
-                            {"Saving..." if busy else "Save task"}
-                        </button>
+                            <div className="form-grid">
+                                <Field
+                                    label="Due date (optional)"
+                                    value={dueDate}
+                                    kind="date"
+                                    onChange={lambda (value: str) { dueDate = value; }}
+                                />
+                                <Field
+                                    label="Planned date (optional)"
+                                    value={plannedDate}
+                                    kind="date"
+                                    onChange={lambda (value: str) { plannedDate = value; }}
+                                />
+                                <Field
+                                    label="Planned time (optional)"
+                                    value={plannedTime}
+                                    kind="time"
+                                    onChange={lambda (value: str) { plannedTime = value; }}
+                                />
+                                <label className="field">
+                                    <span>Priority</span>
+                                    <select
+                                        value={priority}
+                                        onChange={lambda (e: ChangeEvent) { priority = e.target.value; }}
+                                    >
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </label>
+                                <Field
+                                    label="Estimated minutes (1-1440)"
+                                    value={estimate}
+                                    kind="number"
+                                    required={True}
+                                    onChange={lambda (value: str) { estimate = value; }}
+                                />
+                            </div>
+                            <label className="field">
+                                <span>Notes</span>
+                                <textarea
+                                    rows={3}
+                                    value={notes}
+                                    onChange={lambda (e: ChangeEvent) { notes = e.target.value; }}
+                                />
+                            </label>
+                            {<p className="error" role="alert">{error}</p>
+                                if error
+                                else <span/>}
+                            <button className="primary" type="submit" disabled={busy}>
+                                {"Saving..." if busy else "Save task"}
+                            </button>
+                        </fieldset>
                     </form>
                 </section>
             </div>
