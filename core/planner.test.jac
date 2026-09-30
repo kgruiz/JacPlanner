@@ -116,3 +116,43 @@ test "invalid requests cannot create or change tasks" {
         }
     }
 }
+
+test "malformed transport parameters leave existing task data intact" {
+    with TemporaryDirectory() as storePath {
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+        try {
+            saved = client.post("/function/SaveTask", json={"title": "Original"});
+            taskId = saved.data["result"]["task"]["taskId"];
+            badEstimate = client.post(
+                "/function/SaveTask",
+                json={
+                    "taskId": taskId,
+                    "title": "Replacement",
+                    "estimateMinutes": "invalid"
+                }
+            );
+            assert badEstimate.status_code == 422;
+            badCompletion = client.post(
+                "/function/SetCompleted",
+                json={"taskId": taskId, "completed": "invalid"}
+            );
+            assert badCompletion.status_code == 422;
+            missingCompletion = client.post(
+                "/function/SetCompleted", json={"taskId": taskId}
+            );
+            assert missingCompletion.status_code == 422;
+            nullDate = client.post(
+                "/function/SaveTask",
+                json={"taskId": taskId, "title": "Replacement", "dueDate": None}
+            );
+            assert not nullDate.data["result"]["ok"];
+            tasks = client.post("/function/ListTasks", json={}).data["result"]["tasks"];
+            assert len(tasks) == 1;
+            assert tasks[0]["title"] == "Original";
+            assert tasks[0]["estimateMinutes"] == 30;
+            assert not tasks[0]["completed"];
+        } finally {
+            client.close();
+        }
+    }
+}
