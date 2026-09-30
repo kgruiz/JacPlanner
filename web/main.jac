@@ -64,6 +64,15 @@ def:pub app -> JsxElement {
         try {
             result = await ListTasks();
             tasks = result.tasks;
+
+            if courseFilter
+                and not [
+                    task
+                    for task in result.tasks
+                    if task.course == courseFilter
+                ] {
+                courseFilter = "";
+            }
             error = "";
         } except BridgeError as err {
             error = "Cannot reach your planner. Check the server, then refresh.";
