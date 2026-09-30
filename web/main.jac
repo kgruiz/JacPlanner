@@ -1,3 +1,4 @@
+import "./dashboard.css";
 import from "@jac/runtime" { BridgeError }
 import from ..core.planner { TaskView, ListTasks, SaveTask, SetCompleted, DeleteTask }
 
