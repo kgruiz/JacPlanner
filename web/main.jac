@@ -994,7 +994,6 @@ def:pub app -> JsxElement {
                                                 {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) and EventHeight(task) >= 90 else <span/>}
                                             </div>
                                             <span className="resize-handle" aria-hidden="true"/>
-                                            <span className="drag-time">{TimeLabel(dragMinutes)} - {TimeLabel(dragMinutes + task.estimateMinutes)}</span>
                                         </div>
                                         for task in tasks if task.taskId == draggedId and dragDay == day
                                     ]}{<div
