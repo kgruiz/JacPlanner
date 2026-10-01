@@ -214,7 +214,8 @@ def:pub app -> JsxElement {
         resizeMinutes: int = 0,
         draggedId: str = "",
         dragDay: str = "",
-        dragMinutes: int = 0;
+        dragMinutes: int = 0,
+        pendingSchedule: any = None;
 
     async def Refresh {
         loading = True;
@@ -285,20 +286,28 @@ def:pub app -> JsxElement {
         if busy {
             return;
         }
+        originals = [task for task in tasks if task.taskId == scheduledTaskId];
+        if not originals {
+            return;
+        }
+        original = originals[0];
         busy = True;
         error = "";
+        pendingSchedule = {**original, "plannedDate": day, "plannedTime": ClockValue(minutes)};
         try {
             result = await ScheduleTask(
                 scheduledTaskId, day, ClockValue(minutes)
             );
-            if result.ok {
-                await Refresh();
+            savedTask: any = result.task;
+            if result.ok and savedTask is not None {
+                tasks = [savedTask if task.taskId == scheduledTaskId else task for task in tasks];
             } else {
                 error = result.error;
             }
         } except BridgeError as err {
             error = "Could not schedule this task. Try again or edit its planned date and time.";
         } finally {
+            pendingSchedule = None;
             busy = False;
         }
     }
@@ -578,9 +587,13 @@ def:pub app -> JsxElement {
         );
     }
 
+    displayedTasks = [
+        pendingSchedule if pendingSchedule and task.taskId == pendingSchedule.taskId else task
+        for task in tasks
+    ];
     filteredTasks = [
         task
-        for task in tasks
+        for task in displayedTasks
         if (not courseFilter or task.course == courseFilter)
             and (
                 not search
