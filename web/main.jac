@@ -91,6 +91,15 @@ def ResizeMinutes(task: any, deltaPixels: float) -> int {
     return max(1, min(maximum, snapped));
 }
 
+def ClockValue(minutes: int) -> str {
+    return str(int(minutes / 60)).zfill(2) + ":" + str(minutes % 60).zfill(2);
+}
+
+def DragMinutes(pointerPixels: float, grabPixels: float, duration: int) -> int {
+    snapped = int(Math.round((pointerPixels - grabPixels) * 60 / 64 / 15)) * 15;
+    return max(0, min(1440 - duration, snapped));
+}
+
 def EventTimeVisible(task: any) -> bool {
     return EventHeight(task) >= 52;
 }
@@ -201,7 +210,11 @@ def:pub app -> JsxElement {
         plannedDate: str = Today(),
         notes: str = "",
         resizingId: str = "",
-        resizeMinutes: int = 0;
+        resizeMinutes: int = 0,
+        draggedId: str = "",
+        dragDay: str = "",
+        dragMinutes: int = 0,
+        dragGrabPixels: float = 0;
 
     async def Refresh {
         loading = True;
@@ -268,7 +281,7 @@ def:pub app -> JsxElement {
         plannedTime = str(hour).zfill(2) + ":00";
     }
 
-    async def Schedule(scheduledTaskId: str, day: str, hour: int) {
+    async def Schedule(scheduledTaskId: str, day: str, minutes: int) {
         if busy {
             return;
         }
@@ -276,7 +289,7 @@ def:pub app -> JsxElement {
         error = "";
         try {
             result = await ScheduleTask(
-                scheduledTaskId, day, str(hour).zfill(2) + ":00"
+                scheduledTaskId, day, ClockValue(minutes)
             );
             if result.ok {
                 await Refresh();
@@ -288,6 +301,43 @@ def:pub app -> JsxElement {
         } finally {
             busy = False;
         }
+    }
+
+    def ClearDrag {
+        draggedId = "";
+        dragDay = "";
+    }
+
+    def DragStart(e: any, task: TaskView) {
+        if busy or resizingId {
+            e.preventDefault();
+            return;
+        }
+        e.dataTransfer.setData("text/plain", task.taskId);
+        e.dataTransfer.effectAllowed = "move";
+        draggedId = task.taskId;
+        dragGrabPixels = max(0, e.clientY - e.currentTarget.getBoundingClientRect().top) if task.plannedTime else 0;
+        dragDay = task.plannedDate if task.plannedTime else "";
+        dragMinutes = TimeMinutes(task.plannedTime) if task.plannedTime else 0;
+        ghost: any = document.createElement("canvas");
+        ghost.width = 1;
+        ghost.height = 1;
+        e.dataTransfer.setDragImage(ghost, 0, 0);
+    }
+
+    def DragOver(e: any, day: str) {
+        matches = [task for task in tasks if task.taskId == draggedId];
+        if not matches or busy {
+            return;
+        }
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        dragDay = day;
+        dragMinutes = DragMinutes(e.clientY - e.currentTarget.getBoundingClientRect().top, dragGrabPixels, matches[0].estimateMinutes);
+    }
+
+    def DragTask(task: TaskView) -> any {
+        return {**task, "plannedDate": dragDay, "plannedTime": ClockValue(dragMinutes)};
     }
 
     async def SaveDuration(task: TaskView, minutes: int) {
@@ -565,6 +615,23 @@ def:pub app -> JsxElement {
         [editing, busy]
     );
 
+    useEffect(
+        lambda {
+            if not draggedId {
+                return;
+            }
+            CancelDragKey = lambda (e: any) {
+                if e.key == "Escape" {
+                    e.preventDefault();
+                    ClearDrag();
+                }
+            };
+            document.addEventListener("keydown", CancelDragKey, True);
+            return lambda { document.removeEventListener("keydown", CancelDragKey, True); };
+        },
+        [draggedId]
+    );
+
     return
         <main className="shell">
             <header className="masthead" inert={editing}>
@@ -642,9 +709,8 @@ def:pub app -> JsxElement {
                             className={"tray-task overdue" if IsOverdue(task, Today()) else "tray-task"}
                             key={task.taskId}
                             draggable={not busy}
-                            onDragStart={lambda (e: any) { e.dataTransfer.setData(
-                                "text/plain", task.taskId
-                            ); }}
+                            onDragStart={lambda (e: any) { DragStart(e, task); }}
+                            onDragEnd={lambda { ClearDrag(); }}
                         >
                             <button
                                 className="check"
@@ -789,16 +855,21 @@ def:pub app -> JsxElement {
                                 <div
                                     className="day-grid"
                                     key={day}
-                                    onDragOver={lambda (e: any) { e.preventDefault(); }}
+                                    onDragOver={lambda (e: any) { DragOver(e, day); }}
+                                    onDragLeave={lambda (e: any) {
+                                        bounds = e.currentTarget.getBoundingClientRect();
+                                        if e.clientX < bounds.left or e.clientX >= bounds.right or e.clientY < bounds.top or e.clientY >= bounds.bottom {
+                                            dragDay = "";
+                                        }
+                                    }}
                                     onDrop={lambda (e: any) {
                                         e.preventDefault();
-                                        droppedTaskId = e.dataTransfer.getData("text/plain");
-
-                                        if droppedTaskId {
-                                            hour = min(23, max(0, int((
-                                                e.clientY - e.currentTarget.getBoundingClientRect().top
-                                            ) / 64)));
-                                            Schedule(droppedTaskId, day, hour);
+                                        matches = [task for task in tasks if task.taskId == draggedId];
+                                        if matches and not busy {
+                                            minutes = DragMinutes(e.clientY - e.currentTarget.getBoundingClientRect().top, dragGrabPixels, matches[0].estimateMinutes);
+                                            droppedTaskId = draggedId;
+                                            ClearDrag();
+                                            Schedule(droppedTaskId, day, minutes);
                                         }
                                     }}
                                 >
@@ -830,6 +901,7 @@ def:pub app -> JsxElement {
                                             className={"event "
                                                 + CourseColor(task.course)
                                                 + (" overdue" if IsOverdue(task, Today()) else "")
+                                                + (" drag-source" if draggedId == task.taskId else "")
                                                 + (
                                                     " completed"
                                                         if task.completed
@@ -837,9 +909,8 @@ def:pub app -> JsxElement {
                                                 )}
                                             key={task.taskId}
                                             draggable={not busy and not resizingId}
-                                            onDragStart={lambda (e: any) { e.dataTransfer.setData(
-                                                "text/plain", task.taskId
-                                            ); }}
+                                            onDragStart={lambda (e: any) { DragStart(e, task); }}
+                                            onDragEnd={lambda { ClearDrag(); }}
                                             style={EventStyle(PreviewTask(task), [PreviewTask(item) for item in filteredTasks])}
                                         >
                                             <button className="event-content" aria-label={"Edit " + task.title + ", " + TimeLabel(TimeMinutes(task.plannedTime)) + ", " + str(PreviewTask(task).estimateMinutes) + " minutes" + (", overdue" if IsOverdue(task, Today()) else "")} disabled={busy or bool(resizingId)} onClick={lambda { Edit(task); }}>
@@ -863,6 +934,13 @@ def:pub app -> JsxElement {
                                         </div>
                                         for task in filteredTasks
                                         if task.plannedDate == day and task.plannedTime
+                                    ]}{[
+                                        <div className={"event drag-preview " + CourseColor(task.course)} key={"preview-" + task.taskId}
+                                            style={EventStyle(DragTask(task), [DragTask(task)] + [item for item in filteredTasks if item.taskId != task.taskId])}>
+                                            <strong>{task.title}</strong>
+                                            <span className="drag-time">{TimeLabel(dragMinutes)} - {TimeLabel(dragMinutes + task.estimateMinutes)}</span>
+                                        </div>
+                                        for task in tasks if task.taskId == draggedId and dragDay == day
                                     ]}{<div
                                         className="now-line"
                                         style={{

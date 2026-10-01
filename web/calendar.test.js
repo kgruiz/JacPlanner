@@ -7,10 +7,10 @@ const compiled = readFileSync(
   new URL("../.jac/client/web/compiled/web/main.js", import.meta.url),
   "utf8",
 );
-const { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible } = new Function(
+const { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible, DragMinutes, ClockValue } = new Function(
   "_jac",
   compiled.slice(compiled.indexOf("function Today()"), compiled.indexOf("function Field(props)"))
-    + "return { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible };",
+    + "return { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible, DragMinutes, ClockValue };",
 )(_jac);
 
 function Task(taskId, plannedTime, estimateMinutes, plannedDate = "2026-09-30") {
@@ -91,4 +91,40 @@ test("short events omit details before they can be cut off", () => {
   expect(EventTimeVisible(Task("A", "09:00", 60))).toBe(true);
   expect(EventCourseVisible(Task("A", "09:00", 60))).toBe(false);
   expect(EventCourseVisible(Task("A", "09:00", 90))).toBe(true);
+});
+
+
+test("drag preview snaps to quarters, respects the grab offset, and retains duration", () => {
+  expect(DragMinutes(10 * 64 + 16, 0, 60)).toBe(615);
+  expect(DragMinutes(10 * 64 + 16, 16, 60)).toBe(600);
+  expect(DragMinutes(-50, 0, 60)).toBe(0);
+  expect(DragMinutes(24 * 64, 0, 90)).toBe(1350);
+  expect(DragMinutes(24 * 64, 0, 1)).toBe(1439);
+  expect(ClockValue(615)).toBe("10:15");
+  expect(ClockValue(0)).toBe("00:00");
+  expect(ClockValue(1439)).toBe("23:59");
+});
+
+test("Escape clears native drag state so a following drop has no active task", () => {
+  const start = compiled.indexOf("  useEffect(() => {\n    if (!__jacS_draggedId.val)");
+  const ending = "  }, [__jacS_draggedId.val]);";
+  const cancelEffect = new Function("useEffect", "__jacS_draggedId", "document", "ClearDrag",
+    compiled.slice(start, compiled.indexOf(ending, start) + ending.length));
+  const draggedId = { val: "task-A" };
+  let listener;
+  let cleanup;
+  const document = {
+    addEventListener(name, handler) { listener = handler; },
+    removeEventListener(name, handler) { if (listener === handler) listener = null; },
+  };
+  cancelEffect(callback => { cleanup = callback(); }, draggedId, document, () => { draggedId.val = ""; });
+  let prevented = false;
+  listener({ key: "ArrowDown", preventDefault() { prevented = true; } });
+  expect(draggedId.val).toBe("task-A");
+  expect(prevented).toBe(false);
+  listener({ key: "Escape", preventDefault() { prevented = true; } });
+  expect(draggedId.val).toBe("");
+  expect(prevented).toBe(true);
+  cleanup();
+  expect(listener).toBeNull();
 });
