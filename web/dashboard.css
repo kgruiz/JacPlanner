@@ -18,7 +18,7 @@ nav { display: flex; align-self: stretch; gap: 20px; }
 h2 { font-size: 20px; margin: 0; letter-spacing: -.4px; }
 .count { color: #8994a7; font-size: 12px; font-weight: 500; }
 select { border: 1px solid #dce2eb; background: #fff; border-radius: 6px; color: #23314b; padding: 10px 12px; }
-.tray > select { margin-top: 22px; width: 100%; font-size: 14px; }
+.tray > .select-control { margin-top: 22px; width: 100%; font-size: 14px; }
 .tray-hint { color: #8590a2; font-size: 11px; line-height: 1.6; margin: 12px 0 16px; }
 .tray-task { display: flex; gap: 12px; align-items: flex-start; padding: 17px 0; position: relative; }
 .check { flex: 0 0 19px; width: 19px; height: 19px; border: 1.5px solid #bac3d0; background: white; border-radius: 4px; margin-top: 3px; padding: 0; color: #2879ff; }
@@ -87,7 +87,7 @@ h1 { margin: 0 18px 0 0; font-size: clamp(16px, 1.6vw, 22px); font-weight: 650; 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .editor .error { margin: 0; }
 @media (max-width: 1100px) { .layout { grid-template-columns: 250px minmax(0, 1fr); } .tray { padding: 24px 18px; } .toolbar { padding: 18px; } h1 { width: 100%; } .calendar-scroll { height: calc(100vh - 200px); } .masthead { gap: 18px; padding: 0 20px; } }
-@media (max-width: 700px) { .masthead { height: auto; min-height: 68px; flex-wrap: wrap; padding: 15px 16px 0; gap: 8px 20px; } .brand { font-size: 22px; } nav { height: 45px; order: 3; } .search { width: 100%; order: 4; margin: 0 0 12px; } .refresh { margin-left: auto; } .layout { display: flex; flex-direction: column; } .tray { min-height: 0; border-right: 0; border-bottom: 1px solid #e6eaf0; padding: 20px 16px; } .tray-task { padding: 12px 0; } .tray-hint { margin-bottom: 0; } .tray > select { margin-top: 14px; } .toolbar { padding: 20px 16px; gap: 8px; } .toolbar h1 { margin-right: 0; font-size: 18px; } .toolbar select { font-size: 12px; max-width: 110px; } .new-task { padding: 10px; font-size: 12px; } .calendar-scroll { height: 65vh; } .calendar { grid-template-columns: 54px repeat(var(--days), minmax(135px, 1fr)); } .hour-label { right: 7px; font-size: 10px; } .form-grid { grid-template-columns: 1fr; } .tasks-view { padding: 5px 16px 30px; } .editor { padding: 22px; } }
+@media (max-width: 700px) { .masthead { height: auto; min-height: 68px; flex-wrap: wrap; padding: 15px 16px 0; gap: 8px 20px; } .brand { font-size: 22px; } nav { height: 45px; order: 3; } .search { width: 100%; order: 4; margin: 0 0 12px; } .refresh { margin-left: auto; } .layout { display: flex; flex-direction: column; } .tray { min-height: 0; border-right: 0; border-bottom: 1px solid #e6eaf0; padding: 20px 16px; } .tray-task { padding: 12px 0; } .tray-hint { margin-bottom: 0; } .tray > .select-control { margin-top: 14px; } .toolbar { padding: 20px 16px; gap: 8px; } .toolbar h1 { margin-right: 0; font-size: 18px; } .toolbar select { font-size: 12px; max-width: 110px; } .new-task { padding: 10px; font-size: 12px; } .calendar-scroll { height: 65vh; } .calendar { grid-template-columns: 54px repeat(var(--days), minmax(135px, 1fr)); } .hour-label { right: 7px; font-size: 10px; } .form-grid { grid-template-columns: 1fr; } .tasks-view { padding: 5px 16px 30px; } .editor { padding: 22px; } }
 .all-day-label, .all-day { position: sticky; top: 49px; background: white; z-index: 5; }
 .calendar { grid-template-columns: 70px repeat(var(--days), minmax(160px, 1fr)); min-width: calc(70px + var(--days) * 160px); }
 .event { overflow: hidden; }
@@ -139,3 +139,17 @@ h1 { margin: 0 18px 0 0; font-size: clamp(16px, 1.6vw, 22px); font-weight: 650; 
 .event, .tray-task { touch-action: none; user-select: none; }
 .event-content, .tray-title { cursor: grab; }
 .event.drag-source .event-content { cursor: grabbing; }
+
+.select-control { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.select-control select { appearance: none; width: 100%; padding-right: 38px; }
+.select-control > svg { position: absolute; right: 12px; color: #68758b; pointer-events: none; }
+.tray > .select-control select { font-size: 14px; }
+.field .select-control { width: 100%; }
+.field .select-control select { padding-right: 38px; }
+.task-filters { margin-bottom: 18px; }
+.task-card { padding-right: 12px; }
+.task-menu summary { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; }
+.task-menu summary:hover, .task-menu[open] summary { background: #edf2f8; }
+.task-menu[open] > button { top: 36px; }
+.all-day-label { display: flex; flex-direction: column; justify-content: center; padding: 8px; line-height: 1.5; white-space: nowrap; }
+.refresh { width: 40px; height: 40px; flex: 0 0 40px; }

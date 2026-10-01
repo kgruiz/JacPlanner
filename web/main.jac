@@ -1,5 +1,6 @@
 import "./dashboard.css";
 import from react { useEffect }
+import from "lucide-react" { RotateCw, ChevronDown, Ellipsis }
 import from "@jac/runtime" { BridgeError }
 import from ..core.planner {
     TaskView,
@@ -722,10 +723,7 @@ def:pub app -> JsxElement {
                     disabled={busy or loading}
                     onClick={lambda { Refresh(); }}
                 >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path d="M20 7v5h-5M4 17v-5h5"/>
-                        <path d="M6.1 7a7 7 0 0 1 11.6-2L20 8M4 16l2.3 3A7 7 0 0 0 18 17"/>
-                    </svg>
+                    <RotateCw size={20} strokeWidth={2} aria-hidden="true"/>
                 </button>
             </header>
             {<p className="error" role="alert">{error}</p>
@@ -737,7 +735,7 @@ def:pub app -> JsxElement {
                         <h2>To schedule</h2>
                         <span className="count">{str(len(trayTasks))}</span>
                     </div>
-                    <select
+                    <div className="select-control"><select
                         aria-label="Filter by course"
                         value={courseFilter}
                         onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}
@@ -747,7 +745,7 @@ def:pub app -> JsxElement {
                             <option key={value} value={value}>{value}</option>
                             for value in courses
                         ]}
-                    </select>
+                    </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
                     <p className="tray-hint">
                         Drag a task onto the calendar, or select it to plan a time.
                     </p>
@@ -835,14 +833,14 @@ def:pub app -> JsxElement {
                         >
                             ›
                         </button>
-                        <select
+                        <div className="select-control"><select
                             aria-label="Calendar days"
                             value={weekMode}
                             onChange={lambda (e: ChangeEvent) { weekMode = e.target.value; }}
                         >
                             <option value="7">Full week</option>
                             <option value="5">Weekdays</option>
-                        </select>
+                        </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
                         </div> if tab == "calendar" else <h1>Tasks</h1>}
                         <button
                             className="primary new-task"
@@ -867,7 +865,7 @@ def:pub app -> JsxElement {
                                     </span>
                                 </div> for day in days
                             ]}
-                            <div className="all-day-label">All-day / due</div>
+                            <div className="all-day-label" title="Deadlines and tasks without a scheduled time"><span>All-day</span><span>Due</span></div>
                             {[
                                 <div className="all-day" key={day}>
                                     {[
@@ -998,11 +996,11 @@ def:pub app -> JsxElement {
                         else <div className="tasks-view">
                             <div className="section-heading task-filters">
                                 <span className="count">{str(len(filteredTasks)) + " tasks"}</span>
-                                <select aria-label="Filter by course" value={courseFilter} onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}>
+                                <div className="select-control"><select aria-label="Filter by course" value={courseFilter} onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}>
                                     <option value="">All courses</option>
                                     {[<option key={value} value={value}>{value}</option> for value in courses]}
-                                </select>
-                                <select
+                                </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
+                                <div className="select-control"><select
                                     aria-label="Filter task status"
                                     value={status}
                                     onChange={lambda (e: ChangeEvent) { status = e.target.value; }}
@@ -1010,7 +1008,7 @@ def:pub app -> JsxElement {
                                     <option value="open">Open tasks</option>
                                     <option value="done">Completed</option>
                                     <option value="all">All tasks</option>
-                                </select>
+                                </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
                             </div>
                             {<p className="empty">No tasks match your filters.</p>
                                 if not loading and len(filteredTasks) == 0
@@ -1046,7 +1044,7 @@ def:pub app -> JsxElement {
                                     <div className="task-actions">
                                         <button className="quiet" disabled={busy} onClick={lambda { Edit(task); }}>Edit</button>
                                         <details className="task-menu">
-                                            <summary aria-label={"More actions for " + task.title}>⋯</summary>
+                                            <summary aria-label={"More actions for " + task.title}><Ellipsis size={20} strokeWidth={2} aria-hidden="true"/></summary>
                                             <button className="danger" disabled={busy} onClick={lambda { Remove(task); }}>Delete</button>
                                         </details>
                                     </div>
@@ -1118,14 +1116,14 @@ def:pub app -> JsxElement {
                                 />
                                 <label className="field">
                                     <span>Priority</span>
-                                    <select
+                                    <div className="select-control"><select
                                         value={priority}
                                         onChange={lambda (e: ChangeEvent) { priority = e.target.value; }}
                                     >
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
-                                    </select>
+                                    </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
                                 </label>
                                 <Field
                                     label="Estimated minutes (1-1440)"
