@@ -29,7 +29,9 @@ The environment creation is a one-time step. It avoids an observed Jac 0.37.23 b
 
 Open **http://127.0.0.1:8000**. Keep that terminal running while using the web, CLI, or simulator. Stop it with Control-C when finished. Jac manages a persistent Postgres store for the project automatically. Task data survives server restarts and is separate from the source files in Git.
 
-The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. The Tasks view provides a searchable list for editing, completing, reopening, and deleting work. Each task has a course, optional deadline, priority, estimated minutes, optional plan date and start time, and notes.
+The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. Drag the bottom edge of a calendar block to change its duration. Resizing snaps to 15-minute steps and stops at midnight; the task editor still accepts exact minutes. Short blocks show only their title when there is not enough room for the time.
+
+The Tasks view provides compact, searchable rows for editing, completing, reopening, and deleting work. Unfinished tasks with deadlines before today carry an Overdue label. A past scheduled work session alone does not make a task overdue. Each task has a course, optional deadline, priority, estimated minutes, optional plan date and start time, and notes.
 
 Start times use local wall-clock time. Estimated minutes determine the block's length. A time requires a plan date, and a block cannot extend past midnight. Tasks with a date but no time remain available as untimed work for that day. Deadlines and planned work are separate: choosing a work session does not change the deadline.
 
@@ -85,7 +87,7 @@ jac build --as client web
 bun test web
 ```
 
-Backend tests use temporary isolated stores and check CRUD, validation, and persistence after reopening the server. CLI tests cover calendar validation and safe task-ID selection. Web regression tests exercise compiler-emitted calendar helpers and editor focus behavior, so build the web client before running them. They cover short and overlapping blocks, midnight bounds, date navigation across daylight saving, leap day, and New Year, and keyboard focus during editing. Generated dependencies, simulator projects, builds, and local data stay out of Git.
+Backend tests use temporary isolated stores and check CRUD, validation, and persistence after reopening the server. CLI tests cover calendar validation and safe task-ID selection. Web regression tests exercise compiler-emitted calendar helpers, resize bounds, overdue rules, and editor focus behavior, so build the web client before running them. They cover short and overlapping blocks, midnight bounds, date navigation across daylight saving, leap day, and New Year, and keyboard focus during editing. Generated dependencies, simulator projects, builds, and local data stay out of Git.
 
 ## Verification and limitations
 
@@ -95,6 +97,7 @@ Verified on 09/30/2026 with Jac 0.37.23:
 - Eight backend and CLI tests pass, including time validation, midnight limits, preserving start times during older-client edits, and persistence after restart.
 - Fresh-checkout setup and server restart persistence were verified before the calendar redesign. The redesign uses the same dependencies and startup commands.
 - The redesigned web calendar was checked for task creation, time editing, overlapping blocks, drag scheduling, untimed weekend tasks, search/course/status filters, completion/reopening, and phone-width layout.
+- On 10/01/2026, browser checks verified bottom-edge drag resizing and persistence after reload, keyboard resizing and midnight limits, canceled gestures, failed-save recovery, overdue exclusions, the delete menu, and 390px task rows.
 - Additional web QA covered form limits, literal HTML and Unicode, New Year dates, midnight scheduling, canceled edits and deletion, 390px layout, keyboard navigation, delayed saves, and simulated connection failures. Calendar and editor regressions run with `bun test web` after building the client.
 - Web-created time blocks can be read and rescheduled through the CLI and mobile interface. Mobile time editing, invalid-time feedback, completion, and reopening were exercised through its browser target against the same server.
 - The redesigned native iOS timeline launches and reads shared tasks on an iOS 26.5 simulator. The unsigned native build succeeds. Native taps were not automated; the generated Expo template still requires the documented iOS 26.5 workaround for launch, and unsigned builds may show SecureStore entitlement warnings.
