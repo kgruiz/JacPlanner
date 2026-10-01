@@ -122,3 +122,12 @@ h1 { margin: 0 18px 0 0; font-size: clamp(16px, 1.6vw, 22px); font-weight: 650; 
 .task-menu summary:focus-visible { outline: 3px solid #8bb9ff; }
 .task-menu[open] > button { position: absolute; z-index: 6; right: 0; top: 28px; background: white; border: 1px solid #dce2eb; border-radius: 5px; padding: 8px 16px; box-shadow: 0 3px 12px #14203922; }
 @media (max-width: 700px) { .task-top .priority { margin-left: 0; } .task-meta { flex-direction: column; } }
+
+.tasks-layout { grid-template-columns: minmax(0, 1fr); }
+.calendar-controls { display: contents; }
+.tasks-layout .toolbar h1 { width: auto; }
+.task-filters { justify-content: flex-start; flex-wrap: wrap; }
+.task-filters .count { margin-right: auto; }
+.task-filters select { font-size: 12px; }
+.task-meta .schedule-meta { flex-basis: 100%; }
+@media (max-width: 700px) { .task-filters { gap: 10px; } .task-filters .count { flex-basis: 100%; } .task-filters select { max-width: 100%; } }

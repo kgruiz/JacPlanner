@@ -609,8 +609,8 @@ def:pub app -> JsxElement {
             {<p className="error" role="alert">{error}</p>
                 if error and not editing
                 else <span/>}
-            <div className="layout" inert={editing}>
-                <aside className="tray">
+            <div className={"layout tasks-layout" if tab == "tasks" else "layout"} inert={editing}>
+                {<aside className="tray">
                     <div className="section-heading">
                         <h2>To schedule</h2>
                         <span className="count">{str(len(trayTasks))}</span>
@@ -676,9 +676,10 @@ def:pub app -> JsxElement {
                             </span>
                         </article> for task in trayTasks
                     ]}
-                </aside>
+                </aside> if tab == "calendar" else <span hidden/>}
                 <section className="workspace" aria-label="Planner">
                     <div className="toolbar">
+                        {<div className="calendar-controls">
                         <h1>
                             {new(Date, start + "T12:00:00").toLocaleDateString(
                                 "en-US", {"month": "long", "day": "numeric"}
@@ -721,6 +722,7 @@ def:pub app -> JsxElement {
                             <option value="7">Full week</option>
                             <option value="5">Weekdays</option>
                         </select>
+                        </div> if tab == "calendar" else <h1>Tasks</h1>}
                         <button
                             className="primary new-task"
                             disabled={busy}
@@ -877,13 +879,12 @@ def:pub app -> JsxElement {
                     </div>
                         if tab == "calendar"
                         else <div className="tasks-view">
-                            <div className="section-heading">
-                                <h2>
-                                    Tasks{" "}
-                                    <span className="count">
-                                        {str(len(filteredTasks))}
-                                    </span>
-                                </h2>
+                            <div className="section-heading task-filters">
+                                <span className="count">{str(len(filteredTasks)) + " tasks"}</span>
+                                <select aria-label="Filter by course" value={courseFilter} onChange={lambda (e: ChangeEvent) { courseFilter = e.target.value; }}>
+                                    <option value="">All courses</option>
+                                    {[<option key={value} value={value}>{value}</option> for value in courses]}
+                                </select>
                                 <select
                                     aria-label="Filter task status"
                                     value={status}
@@ -919,7 +920,7 @@ def:pub app -> JsxElement {
                                         <div className="task-meta">
                                             <span>{str(task.estimateMinutes)} min</span>
                                             <span className={"deadline-meta overdue-label" if IsOverdue(task, Today()) else "deadline-meta"}>{"Overdue · Due " + DisplayDate(task.dueDate) if IsOverdue(task, Today()) else "Due " + DisplayDate(task.dueDate) if task.dueDate else "No deadline"}</span>
-                                            <span>{ScheduleLabel(task)}</span>
+                                            <span className="schedule-meta">{ScheduleLabel(task)}</span>
                                         </div>
                                         {<p className="notes">{task.notes}</p>
                                             if task.notes
