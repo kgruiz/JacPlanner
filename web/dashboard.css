@@ -135,3 +135,7 @@ h1 { margin: 0 18px 0 0; font-size: clamp(16px, 1.6vw, 22px); font-weight: 650; 
 .event.drag-source { opacity: .35; }
 .drag-preview { pointer-events: none; z-index: 4; padding: 3px 7px; overflow: visible; border: 2px solid var(--course-color); box-shadow: 0 3px 12px #14203922; }
 .drag-preview .drag-time { position: absolute; bottom: 100%; left: -2px; background: #142039; color: white; border-radius: 4px; padding: 3px 6px; margin-bottom: 3px; overflow: visible; }
+
+.event, .tray-task { touch-action: none; user-select: none; }
+.event-content, .tray-title { cursor: grab; }
+.event.drag-source .event-content { cursor: grabbing; }

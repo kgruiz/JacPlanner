@@ -105,26 +105,105 @@ test("drag preview snaps to quarters, respects the grab offset, and retains dura
   expect(ClockValue(1439)).toBe("23:59");
 });
 
-test("Escape clears native drag state so a following drop has no active task", () => {
-  const start = compiled.indexOf("  useEffect(() => {\n    if (!__jacS_draggedId.val)");
-  const ending = "  }, [__jacS_draggedId.val]);";
-  const cancelEffect = new Function("useEffect", "__jacS_draggedId", "document", "ClearDrag",
-    compiled.slice(start, compiled.indexOf(ending, start) + ending.length));
-  const draggedId = { val: "task-A" };
-  let listener;
-  let cleanup;
-  const document = {
-    addEventListener(name, handler) { listener = handler; },
-    removeEventListener(name, handler) { if (listener === handler) listener = null; },
+function PointerHarness(excluded = false) {
+  const state = value => ({ val: value, set(next) { this.val = next; } });
+  const busy = state(false), resizing = state("");
+  const dragged = state(""), day = state(""), minutes = state(0);
+  const listeners = new Map(), sourceListeners = new Map();
+  const timers = [], saves = [];
+  let captured = false, inside = true;
+  const add = (map, name, handler) => {
+    if (!map.has(name)) map.set(name, new Set());
+    map.get(name).add(handler);
   };
-  cancelEffect(callback => { cleanup = callback(); }, draggedId, document, () => { draggedId.val = ""; });
-  let prevented = false;
-  listener({ key: "ArrowDown", preventDefault() { prevented = true; } });
-  expect(draggedId.val).toBe("task-A");
-  expect(prevented).toBe(false);
-  listener({ key: "Escape", preventDefault() { prevented = true; } });
-  expect(draggedId.val).toBe("");
-  expect(prevented).toBe(true);
-  cleanup();
-  expect(listener).toBeNull();
+  const remove = (map, name, handler) => map.get(name)?.delete(handler);
+  const grid = { dataset: { day: "2026-10-02" }, getBoundingClientRect: () => ({ top: 0 }) };
+  const source = {
+    getBoundingClientRect: () => ({ top: 640 }),
+    setPointerCapture() { captured = true; },
+    hasPointerCapture: () => captured,
+    releasePointerCapture() { captured = false; },
+    addEventListener: (name, handler) => add(sourceListeners, name, handler),
+    removeEventListener: (name, handler) => remove(sourceListeners, name, handler),
+  };
+  const document = {
+    elementFromPoint: () => inside ? { closest: () => grid } : null,
+    addEventListener: (name, handler) => add(listeners, name, handler),
+    removeEventListener: (name, handler) => remove(listeners, name, handler),
+  };
+  const start = compiled.indexOf("  function ClearDrag() {");
+  const ending = compiled.indexOf("  function DragTask(", start);
+  const setup = new Function("_jac", "__jacS_busy", "__jacS_resizingId", "__jacS_draggedId", "__jacS_dragDay", "__jacS_dragMinutes", "document", "window", "DragMinutes", "Schedule",
+    compiled.slice(start, ending) + "return PointerStart;");
+  const PointerStart = setup(_jac, busy, resizing, dragged, day, minutes, document,
+    { setTimeout: fn => timers.push(fn) }, DragMinutes, (...args) => saves.push(args));
+  PointerStart({ button: 0, pointerId: 1, clientX: 100, clientY: 650,
+    currentTarget: source, target: { closest: () => excluded ? source : null } }, Task("A", "10:00", 60));
+  function fire(name, props = {}) {
+    const event = { type: name, pointerId: 1, clientX: 100, clientY: 650,
+      prevented: false, stopped: false, preventDefault() { this.prevented = true; },
+      stopPropagation() { this.stopped = true; }, ...props };
+    for (const handler of [...(listeners.get(name) ?? [])]) handler(event);
+    return event;
+  }
+  return { dragged, day, minutes, saves, fire, captured: () => captured,
+    outside: () => { inside = false; },
+    flush: () => { while (timers.length) timers.shift()(); },
+    listeners: () => [...listeners.values(), ...sourceListeners.values()].reduce((sum, set) => sum + set.size, 0) };
+}
+
+test("pointer movement under the threshold preserves click to edit", () => {
+  const app = PointerHarness();
+  app.fire("pointermove", { clientX: 103 });
+  expect(app.dragged.val).toBe("");
+  expect(app.captured()).toBe(false);
+  app.fire("pointerup");
+  expect(app.fire("click").prevented).toBe(false);
+  expect(app.saves).toEqual([]);
+  expect(app.listeners()).toBe(0);
+});
+
+test("pointer move previews and saves the same snapped time after release", () => {
+  const app = PointerHarness();
+  app.fire("pointermove", { clientY: 714 });
+  expect(app.dragged.val).toBe("A");
+  expect(app.day.val).toBe("2026-10-02");
+  expect(app.minutes.val).toBe(660);
+  expect(app.captured()).toBe(true);
+  app.fire("pointerup", { clientY: 714 });
+  expect(app.saves).toEqual([["A", "2026-10-02", 660]]);
+  expect(app.fire("click").prevented).toBe(true);
+  app.flush();
+  expect(app.captured()).toBe(false);
+  expect(app.dragged.val).toBe("");
+  expect(app.listeners()).toBe(0);
+});
+
+test("Escape cancels movement and suppresses the release click until pointerup", () => {
+  const app = PointerHarness();
+  app.fire("pointermove", { clientY: 714 });
+  expect(app.fire("keydown", { key: "Escape" }).prevented).toBe(true);
+  app.flush();
+  expect(app.dragged.val).toBe("");
+  expect(app.captured()).toBe(false);
+  app.fire("pointerup");
+  expect(app.fire("click").prevented).toBe(true);
+  app.flush();
+  expect(app.fire("click").prevented).toBe(false);
+  expect(app.saves).toEqual([]);
+  expect(app.listeners()).toBe(0);
+});
+
+test("outside release and pointer cancellation clear previews without saving", () => {
+  for (const action of ["outside", "pointercancel"]) {
+    const app = PointerHarness();
+    app.fire("pointermove", { clientY: 714 });
+    if (action === "outside") { app.outside(); app.fire("pointerup"); }
+    else app.fire("pointercancel");
+    app.flush();
+    expect(app.saves).toEqual([]);
+    expect(app.dragged.val).toBe("");
+    expect(app.listeners()).toBe(0);
+  }
+  expect(PointerHarness(true).listeners()).toBe(0);
 });

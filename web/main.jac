@@ -213,8 +213,7 @@ def:pub app -> JsxElement {
         resizeMinutes: int = 0,
         draggedId: str = "",
         dragDay: str = "",
-        dragMinutes: int = 0,
-        dragGrabPixels: float = 0;
+        dragMinutes: int = 0;
 
     async def Refresh {
         loading = True;
@@ -308,32 +307,105 @@ def:pub app -> JsxElement {
         dragDay = "";
     }
 
-    def DragStart(e: any, task: TaskView) {
-        if busy or resizingId {
-            e.preventDefault();
+    def PointerStart(e: any, task: any) {
+        if busy or resizingId or e.button != 0
+            or e.target.closest(".resize-handle, .check") {
             return;
         }
-        e.dataTransfer.setData("text/plain", task.taskId);
-        e.dataTransfer.effectAllowed = "move";
-        draggedId = task.taskId;
-        dragGrabPixels = max(0, e.clientY - e.currentTarget.getBoundingClientRect().top) if task.plannedTime else 0;
-        dragDay = task.plannedDate if task.plannedTime else "";
-        dragMinutes = TimeMinutes(task.plannedTime) if task.plannedTime else 0;
-        ghost: any = document.createElement("canvas");
-        ghost.width = 1;
-        ghost.height = 1;
-        e.dataTransfer.setDragImage(ghost, 0, 0);
-    }
-
-    def DragOver(e: any, day: str) {
-        matches = [task for task in tasks if task.taskId == draggedId];
-        if not matches or busy {
-            return;
-        }
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        dragDay = day;
-        dragMinutes = DragMinutes(e.clientY - e.currentTarget.getBoundingClientRect().top, dragGrabPixels, matches[0].estimateMinutes);
+        page: any = document;
+        source: any = e.currentTarget;
+        pointerId = e.pointerId;
+        startX = e.clientX;
+        startY = e.clientY;
+        grabPixels = max(0, e.clientY - source.getBoundingClientRect().top) if task.plannedTime else 0;
+        active = False;
+        finished = False;
+        BlockClick = lambda (event: any) {
+            event.preventDefault();
+            event.stopPropagation();
+        };
+        RemoveBlock = lambda {
+            document.removeEventListener("click", BlockClick, True);
+            document.removeEventListener("pointerup", BlockerRelease, True);
+            document.removeEventListener("pointercancel", BlockerRelease, True);
+        };
+        BlockerRelease = lambda (event: any) {
+            if event.pointerId == pointerId {
+                window.setTimeout(RemoveBlock, 0);
+            }
+        };
+        Cleanup = lambda (released: bool) {
+            finished = True;
+            document.removeEventListener("pointermove", Move, True);
+            document.removeEventListener("pointerup", Finish, True);
+            document.removeEventListener("pointercancel", Cancel, True);
+            document.removeEventListener("keydown", CancelKey, True);
+            source.removeEventListener("lostpointercapture", Cancel);
+            if source.hasPointerCapture(pointerId) {
+                source.releasePointerCapture(pointerId);
+            }
+            ClearDrag();
+            if active {
+                if released {
+                    window.setTimeout(RemoveBlock, 0);
+                } else {
+                    document.addEventListener("pointerup", BlockerRelease, True);
+                    document.addEventListener("pointercancel", BlockerRelease, True);
+                }
+            }
+        };
+        Destination = lambda (event: any) {
+            target: any = page.elementFromPoint(event.clientX, event.clientY);
+            return target.closest(".day-grid") if target else None;
+        };
+        Move = lambda (event: any) {
+            if event.pointerId != pointerId or finished {
+                return;
+            }
+            if not active {
+                if Math.hypot(event.clientX - startX, event.clientY - startY) < 5 {
+                    return;
+                }
+                active = True;
+                draggedId = task.taskId;
+                document.addEventListener("click", BlockClick, True);
+                source.setPointerCapture(pointerId);
+            }
+            event.preventDefault();
+            grid: any = Destination(event);
+            dragDay = grid.dataset.day if grid else "";
+            if grid {
+                dragMinutes = DragMinutes(event.clientY - grid.getBoundingClientRect().top, grabPixels, task.estimateMinutes);
+            }
+        };
+        Finish = lambda (event: any) {
+            if event.pointerId != pointerId or finished {
+                return;
+            }
+            grid: any = Destination(event) if active else None;
+            day = grid.dataset.day if grid else "";
+            minutes = DragMinutes(event.clientY - grid.getBoundingClientRect().top, grabPixels, task.estimateMinutes) if grid else 0;
+            Cleanup(True);
+            if day {
+                Schedule(task.taskId, day, minutes);
+            }
+        };
+        Cancel = lambda (event: any) {
+            if event.pointerId == pointerId and not finished {
+                Cleanup(event.type == "pointercancel");
+            }
+        };
+        CancelKey = lambda (event: any) {
+            if event.key == "Escape" and not finished {
+                event.preventDefault();
+                Cleanup(False);
+            }
+        };
+        document.addEventListener("pointermove", Move, True);
+        document.addEventListener("pointerup", Finish, True);
+        document.addEventListener("pointercancel", Cancel, True);
+        document.addEventListener("keydown", CancelKey, True);
+        source.addEventListener("lostpointercapture", Cancel);
     }
 
     def DragTask(task: TaskView) -> any {
@@ -615,23 +687,6 @@ def:pub app -> JsxElement {
         [editing, busy]
     );
 
-    useEffect(
-        lambda {
-            if not draggedId {
-                return;
-            }
-            CancelDragKey = lambda (e: any) {
-                if e.key == "Escape" {
-                    e.preventDefault();
-                    ClearDrag();
-                }
-            };
-            document.addEventListener("keydown", CancelDragKey, True);
-            return lambda { document.removeEventListener("keydown", CancelDragKey, True); };
-        },
-        [draggedId]
-    );
-
     return
         <main className="shell">
             <header className="masthead" inert={editing}>
@@ -708,9 +763,9 @@ def:pub app -> JsxElement {
                         <article
                             className={"tray-task overdue" if IsOverdue(task, Today()) else "tray-task"}
                             key={task.taskId}
-                            draggable={not busy}
-                            onDragStart={lambda (e: any) { DragStart(e, task); }}
-                            onDragEnd={lambda { ClearDrag(); }}
+                            draggable={False}
+                            onDragStart={lambda (e: any) { e.preventDefault(); }}
+                            onPointerDown={lambda (e: any) { PointerStart(e, task); }}
                         >
                             <button
                                 className="check"
@@ -855,23 +910,7 @@ def:pub app -> JsxElement {
                                 <div
                                     className="day-grid"
                                     key={day}
-                                    onDragOver={lambda (e: any) { DragOver(e, day); }}
-                                    onDragLeave={lambda (e: any) {
-                                        bounds = e.currentTarget.getBoundingClientRect();
-                                        if e.clientX < bounds.left or e.clientX >= bounds.right or e.clientY < bounds.top or e.clientY >= bounds.bottom {
-                                            dragDay = "";
-                                        }
-                                    }}
-                                    onDrop={lambda (e: any) {
-                                        e.preventDefault();
-                                        matches = [task for task in tasks if task.taskId == draggedId];
-                                        if matches and not busy {
-                                            minutes = DragMinutes(e.clientY - e.currentTarget.getBoundingClientRect().top, dragGrabPixels, matches[0].estimateMinutes);
-                                            droppedTaskId = draggedId;
-                                            ClearDrag();
-                                            Schedule(droppedTaskId, day, minutes);
-                                        }
-                                    }}
+                                    data-day={day}
                                 >
                                     {[
                                         <button
@@ -908,9 +947,9 @@ def:pub app -> JsxElement {
                                                         else ""
                                                 )}
                                             key={task.taskId}
-                                            draggable={not busy and not resizingId}
-                                            onDragStart={lambda (e: any) { DragStart(e, task); }}
-                                            onDragEnd={lambda { ClearDrag(); }}
+                                            draggable={False}
+                                            onDragStart={lambda (e: any) { e.preventDefault(); }}
+                                            onPointerDown={lambda (e: any) { PointerStart(e, task); }}
                                             style={EventStyle(PreviewTask(task), [PreviewTask(item) for item in filteredTasks])}
                                         >
                                             <button className="event-content" aria-label={"Edit " + task.title + ", " + TimeLabel(TimeMinutes(task.plannedTime)) + ", " + str(PreviewTask(task).estimateMinutes) + " minutes" + (", overdue" if IsOverdue(task, Today()) else "")} disabled={busy or bool(resizingId)} onClick={lambda { Edit(task); }}>
