@@ -29,7 +29,7 @@ The environment creation is a one-time step. It avoids an observed Jac 0.37.23 b
 
 Open **http://127.0.0.1:8000**. Keep that terminal running while using the web, CLI, or simulator. Stop it with Control-C when finished. Jac manages a persistent Postgres store for the project automatically. Task data survives server restarts and is separate from the source files in Git.
 
-The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. Drag the bottom edge of a calendar block to change its duration. Resizing snaps to 15-minute steps and stops at midnight; the task editor still accepts exact minutes. Short blocks show only their title when there is not enough room for the time.
+The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. Drag a whole block to preview its new day and time before dropping it. The preview snaps to 15-minute steps and keeps the block within the day; releasing it saves the new schedule. Drag the bottom edge of a calendar block to change its duration. Resizing snaps to 15-minute steps and stops at midnight; the task editor still accepts exact minutes. Short blocks show only their title when there is not enough room for the time.
 
 The Tasks view provides compact, searchable rows for editing, completing, reopening, and deleting work. Unfinished tasks with deadlines before today carry an Overdue label. A past scheduled work session alone does not make a task overdue. Each task has a course, optional deadline, priority, estimated minutes, optional plan date and start time, and notes.
 
