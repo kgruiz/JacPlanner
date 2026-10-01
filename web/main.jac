@@ -22,7 +22,7 @@ def Today -> str {
 
 def DisplayDate(value: str) -> str {
     if not value {
-        return "Unscheduled";
+        return "No date";
     }
     parts = value.split("-");
 
@@ -68,6 +68,35 @@ def TimeLabel(minutes: int) -> str {
         + ":"
         + str(minute).zfill(2)
         + (" AM" if hour < 12 else " PM");
+}
+
+def IsOverdue(task: any, today: str) -> bool {
+    return not task.completed and bool(task.dueDate) and task.dueDate < today;
+}
+
+def ScheduleLabel(task: any) -> str {
+    if not task.plannedDate {
+        return "Not scheduled";
+    }
+    return "Scheduled " + DisplayDate(task.plannedDate)
+        + (" at " + TimeLabel(TimeMinutes(task.plannedTime)) if task.plannedTime else " (time not set)");
+}
+
+def ResizeMinutes(task: any, deltaPixels: float) -> int {
+    if abs(deltaPixels) < 4 {
+        return task.estimateMinutes;
+    }
+    maximum = 1440 - TimeMinutes(task.plannedTime);
+    snapped = int(Math.round((task.estimateMinutes + deltaPixels * 60 / 64) / 15)) * 15;
+    return max(1, min(maximum, snapped));
+}
+
+def EventTimeVisible(task: any) -> bool {
+    return EventHeight(task) >= 52;
+}
+
+def EventCourseVisible(task: any) -> bool {
+    return EventHeight(task) >= 72;
 }
 
 def EventHeight(task: any) -> float {
@@ -170,7 +199,9 @@ def:pub app -> JsxElement {
         priority: str = "medium",
         estimate: str = "30",
         plannedDate: str = Today(),
-        notes: str = "";
+        notes: str = "",
+        resizingId: str = "",
+        resizeMinutes: int = 0;
 
     async def Refresh {
         loading = True;
@@ -257,6 +288,70 @@ def:pub app -> JsxElement {
         } finally {
             busy = False;
         }
+    }
+
+    async def SaveDuration(task: TaskView, minutes: int) {
+        if busy or minutes == task.estimateMinutes {
+            return;
+        }
+        busy = True;
+        error = "";
+        try {
+            result = await SaveTask(task.taskId, task.title, task.course,
+                task.dueDate, task.priority, minutes, task.plannedDate,
+                task.notes, task.plannedTime);
+            if result.ok {
+                await Refresh();
+            } else {
+                error = result.error;
+            }
+        } except BridgeError as err {
+            error = "Could not resize this task. Try again.";
+        } finally {
+            busy = False;
+        }
+    }
+
+    def ResizeStart(e: any, task: TaskView) {
+        e.preventDefault();
+        e.stopPropagation();
+        if busy or resizingId or e.button != 0 {
+            return;
+        }
+        resizingId = task.taskId;
+        resizeMinutes = task.estimateMinutes;
+        startY = e.clientY;
+        pointerId = e.pointerId;
+        handle: any = e.currentTarget;
+        handle.setPointerCapture(pointerId);
+        Move = lambda (event: any) {
+            if event.pointerId == pointerId {
+                resizeMinutes = ResizeMinutes(task, event.clientY - startY);
+            }
+        };
+        Cleanup = lambda {
+            handle.removeEventListener("pointermove", Move);
+            handle.removeEventListener("pointerup", Finish);
+            handle.removeEventListener("pointercancel", Cancel);
+            handle.removeEventListener("lostpointercapture", Cancel);
+            resizingId = "";
+        };
+        Finish = lambda (event: any) {
+            if event.pointerId == pointerId {
+                minutes = ResizeMinutes(task, event.clientY - startY);
+                Cleanup();
+                SaveDuration(task, minutes);
+            }
+        };
+        Cancel = lambda (event: any) { Cleanup(); };
+        handle.addEventListener("pointermove", Move);
+        handle.addEventListener("pointerup", Finish);
+        handle.addEventListener("pointercancel", Cancel);
+        handle.addEventListener("lostpointercapture", Cancel);
+    }
+
+    def PreviewTask(task: TaskView) -> any {
+        return {**task, "estimateMinutes": resizeMinutes} if resizingId == task.taskId else task;
     }
 
     async def Save {
@@ -500,10 +595,15 @@ def:pub app -> JsxElement {
                 />
                 <button
                     className="quiet refresh"
+                    aria-label="Refresh tasks"
+                    title="Refresh tasks"
                     disabled={busy or loading}
                     onClick={lambda { Refresh(); }}
                 >
-                    Refresh
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M20 7v5h-5M4 17v-5h5"/>
+                        <path d="M6.1 7a7 7 0 0 1 11.6-2L20 8M4 16l2.3 3A7 7 0 0 0 18 17"/>
+                    </svg>
                 </button>
             </header>
             {<p className="error" role="alert">{error}</p>
@@ -539,7 +639,7 @@ def:pub app -> JsxElement {
                         else <span/>}
                     {[
                         <article
-                            className="tray-task"
+                            className={"tray-task overdue" if IsOverdue(task, Today()) else "tray-task"}
                             key={task.taskId}
                             draggable={not busy}
                             onDragStart={lambda (e: any) { e.dataTransfer.setData(
@@ -569,6 +669,7 @@ def:pub app -> JsxElement {
                                     {task.title}
                                 </strong>
                                 <span>{task.course or "Personal"}</span>
+                                {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) else <span/>}
                             </button>
                             <span className="duration">
                                 {str(task.estimateMinutes)} min
@@ -648,7 +749,7 @@ def:pub app -> JsxElement {
                                 <div className="all-day" key={day}>
                                     {[
                                         <button
-                                            className="deadline"
+                                            className={"deadline overdue" if IsOverdue(task, Today()) else "deadline"}
                                             key={task.taskId}
                                             disabled={busy}
                                             onClick={lambda { Edit(task); }}
@@ -658,7 +759,7 @@ def:pub app -> JsxElement {
                                                     + CourseColor(task.course)}
                                             />
                                             {task.title}
-                                            {" · due"
+                                            {" · overdue" if IsOverdue(task, Today()) else " · due"
                                                 if task.dueDate == day
                                                 else " · planned"}
                                         </button>
@@ -711,7 +812,7 @@ def:pub app -> JsxElement {
                                             onClick={lambda { NewSlot(day, hour); }}
                                         /> for hour in range(24)
                                     ]}{[
-                                        <button
+                                        <div
                                             title={task.title
                                                 + " · "
                                                 + task.course
@@ -726,31 +827,38 @@ def:pub app -> JsxElement {
                                                 + task.plannedTime}
                                             className={"event "
                                                 + CourseColor(task.course)
+                                                + (" overdue" if IsOverdue(task, Today()) else "")
                                                 + (
                                                     " completed"
                                                         if task.completed
                                                         else ""
                                                 )}
                                             key={task.taskId}
-                                            draggable={not busy}
+                                            draggable={not busy and not resizingId}
                                             onDragStart={lambda (e: any) { e.dataTransfer.setData(
                                                 "text/plain", task.taskId
                                             ); }}
-                                            disabled={busy}
-                                            onClick={lambda { Edit(task); }}
-                                            style={EventStyle(task, filteredTasks)}
+                                            style={EventStyle(PreviewTask(task), [PreviewTask(item) for item in filteredTasks])}
                                         >
-                                            <strong>{task.title}</strong>
-                                            <span>
-                                                {TimeLabel(
-                                                    TimeMinutes(task.plannedTime)
-                                                )} - {TimeLabel(
-                                                    TimeMinutes(task.plannedTime)
-                                                        + task.estimateMinutes
-                                                )}
-                                            </span>
-                                            <span>{task.course or "Personal"}</span>
-                                        </button>
+                                            <button className="event-content" aria-label={"Edit " + task.title + ", " + TimeLabel(TimeMinutes(task.plannedTime)) + ", " + str(PreviewTask(task).estimateMinutes) + " minutes" + (", overdue" if IsOverdue(task, Today()) else "")} disabled={busy or bool(resizingId)} onClick={lambda { Edit(task); }}>
+                                                <strong>{task.title}</strong>
+                                                {<span>{TimeLabel(TimeMinutes(task.plannedTime))} - {TimeLabel(TimeMinutes(task.plannedTime) + PreviewTask(task).estimateMinutes)}</span> if EventTimeVisible(PreviewTask(task)) else <span/>}
+                                                {<span>{task.course or "Personal"}</span> if EventCourseVisible(PreviewTask(task)) else <span/>}
+                                                {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) and EventHeight(PreviewTask(task)) >= 90 else <span/>}
+                                            </button>
+                                            <button className="resize-handle" aria-label={"Resize " + task.title + ", " + str(PreviewTask(task).estimateMinutes) + " minutes. Use up or down arrows."} title="Drag to resize; arrow keys adjust by 15 minutes" disabled={busy}
+                                                onPointerDown={lambda (e: any) { ResizeStart(e, task); }}
+                                                onClick={lambda (e: any) { e.preventDefault(); e.stopPropagation(); }}
+                                                onDragStart={lambda (e: any) { e.preventDefault(); e.stopPropagation(); }}
+                                                onKeyDown={lambda (e: any) {
+                                                    if e.key == "ArrowUp" or e.key == "ArrowDown" {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        SaveDuration(task, max(1, min(1440 - TimeMinutes(task.plannedTime), task.estimateMinutes + (-15 if e.key == "ArrowUp" else 15))));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
                                         for task in filteredTasks
                                         if task.plannedDate == day and task.plannedTime
                                     ]}{<div
@@ -790,7 +898,7 @@ def:pub app -> JsxElement {
                                 if not loading and len(filteredTasks) == 0
                                 else <span/>}
                             {[
-                                <article className="task-card" key={task.taskId}>
+                                <article className={"task-card overdue" if IsOverdue(task, Today()) else "task-card"} key={task.taskId}>
                                     <button
                                         className="check"
                                         aria-label={"Reopen " + task.title
@@ -804,50 +912,25 @@ def:pub app -> JsxElement {
                                     </button>
                                     <div className="task-body">
                                         <div className="task-top">
-                                            <span
-                                                className={"course-tag "
-                                                    + CourseColor(task.course)}
-                                            >
-                                                {task.course or "Personal"}
-                                            </span>
-                                            <span
-                                                className="priority"
-                                                data-priority={task.priority}
-                                            >
-                                                {task.priority} priority
-                                            </span>
+                                            <h3 className={"completed" if task.completed else ""}>{task.title}</h3>
+                                            <span className={"course-tag " + CourseColor(task.course)}>{task.course or "Personal"}</span>
+                                            <span className="priority" data-priority={task.priority}>{task.priority} priority</span>
                                         </div>
-                                        <h3
-                                            className={"completed"
-                                                if task.completed
-                                                else ""}
-                                        >
-                                            {task.title}
-                                        </h3>
-                                        <p className="task-meta">
-                                            {str(task.estimateMinutes)} min · Due {DisplayDate(
-                                                task.dueDate
-                                            )} · Plan {DisplayDate(task.plannedDate)} {task.plannedTime}
-                                        </p>
+                                        <div className="task-meta">
+                                            <span>{str(task.estimateMinutes)} min</span>
+                                            <span className={"deadline-meta overdue-label" if IsOverdue(task, Today()) else "deadline-meta"}>{"Overdue · Due " + DisplayDate(task.dueDate) if IsOverdue(task, Today()) else "Due " + DisplayDate(task.dueDate) if task.dueDate else "No deadline"}</span>
+                                            <span>{ScheduleLabel(task)}</span>
+                                        </div>
                                         {<p className="notes">{task.notes}</p>
                                             if task.notes
                                             else <span/>}
-                                        <div className="task-actions">
-                                            <button
-                                                className="quiet"
-                                                disabled={busy}
-                                                onClick={lambda { Edit(task); }}
-                                            >
-                                                Edit task
-                                            </button>
-                                            <button
-                                                className="danger"
-                                                disabled={busy}
-                                                onClick={lambda { Remove(task); }}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
+                                    </div>
+                                    <div className="task-actions">
+                                        <button className="quiet" disabled={busy} onClick={lambda { Edit(task); }}>Edit</button>
+                                        <details className="task-menu">
+                                            <summary aria-label={"More actions for " + task.title}>⋯</summary>
+                                            <button className="danger" disabled={busy} onClick={lambda { Remove(task); }}>Delete</button>
+                                        </details>
                                     </div>
                                 </article> for task in filteredTasks
                             ]}

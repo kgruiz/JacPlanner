@@ -7,10 +7,10 @@ const compiled = readFileSync(
   new URL("../.jac/client/web/compiled/web/main.js", import.meta.url),
   "utf8",
 );
-const { EventStyle, ShiftDate, WeekStart } = new Function(
+const { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible } = new Function(
   "_jac",
   compiled.slice(compiled.indexOf("function Today()"), compiled.indexOf("function Field(props)"))
-    + "return { EventStyle, ShiftDate, WeekStart };",
+    + "return { EventStyle, ShiftDate, WeekStart, ResizeMinutes, IsOverdue, ScheduleLabel, DisplayDate, TimeLabel, EventTimeVisible, EventCourseVisible };",
 )(_jac);
 
 function Task(taskId, plannedTime, estimateMinutes, plannedDate = "2026-09-30") {
@@ -55,4 +55,40 @@ test("week navigation handles daylight saving, leap day, and year rollover", () 
   expect(ShiftDate("2028-02-29", 7)).toBe("2028-03-07");
   expect(ShiftDate("2026-12-31", 7)).toBe("2027-01-07");
   expect(WeekStart("2026-11-01")).toBe("2026-10-26");
+});
+
+
+test("resize preserves a click, snaps movement, and clamps at both day boundaries", () => {
+  expect(ResizeMinutes(Task("A", "09:00", 31), 0)).toBe(31);
+  expect(ResizeMinutes(Task("A", "09:00", 1), 2)).toBe(1);
+  expect(ResizeMinutes(Task("A", "09:00", 60), 16)).toBe(75);
+  expect(ResizeMinutes(Task("A", "09:00", 60), -16)).toBe(45);
+  expect(ResizeMinutes(Task("A", "09:00", 60), -1000)).toBe(1);
+  expect(ResizeMinutes(Task("A", "23:59", 1), 1000)).toBe(1);
+  expect(ResizeMinutes(Task("A", "23:30", 15), 1000)).toBe(30);
+});
+
+test("only incomplete tasks with a past deadline are overdue", () => {
+  const task = { dueDate: "2026-09-30", completed: false };
+  expect(IsOverdue(task, "2026-10-01")).toBe(true);
+  expect(IsOverdue({ ...task, dueDate: "2026-10-01" }, "2026-10-01")).toBe(false);
+  expect(IsOverdue({ ...task, dueDate: "" }, "2026-10-01")).toBe(false);
+  expect(IsOverdue({ ...task, completed: true }, "2026-10-01")).toBe(false);
+});
+
+test("date and scheduling labels distinguish missing deadlines and times", () => {
+  expect(DisplayDate("2026-10-01")).toBe("10/01/2026");
+  expect(TimeLabel(0)).toBe("12:00 AM");
+  expect(TimeLabel(13 * 60 + 15)).toBe("1:15 PM");
+  expect(ScheduleLabel({ plannedDate: "", plannedTime: "" })).toBe("Not scheduled");
+  expect(ScheduleLabel({ plannedDate: "2026-10-01", plannedTime: "" })).toBe("Scheduled 10/01/2026 (time not set)");
+  expect(ScheduleLabel({ plannedDate: "2026-10-01", plannedTime: "13:15" })).toBe("Scheduled 10/01/2026 at 1:15 PM");
+});
+
+test("short events omit details before they can be cut off", () => {
+  expect(EventTimeVisible(Task("A", "09:00", 15))).toBe(false);
+  expect(EventTimeVisible(Task("A", "09:00", 30))).toBe(false);
+  expect(EventTimeVisible(Task("A", "09:00", 60))).toBe(true);
+  expect(EventCourseVisible(Task("A", "09:00", 60))).toBe(false);
+  expect(EventCourseVisible(Task("A", "09:00", 90))).toBe(true);
 });

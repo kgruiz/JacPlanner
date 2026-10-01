@@ -92,3 +92,33 @@ h1 { margin: 0 18px 0 0; font-size: clamp(16px, 1.6vw, 22px); font-weight: 650; 
 .calendar { grid-template-columns: 70px repeat(var(--days), minmax(160px, 1fr)); min-width: calc(70px + var(--days) * 160px); }
 .event { overflow: hidden; }
 .event strong, .event span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.refresh { display: grid; place-items: center; width: 36px; height: 36px; padding: 6px; border-radius: 6px; }
+.refresh:hover { background: #edf5ff; }
+.event { background: color-mix(in srgb, var(--course-color) 18%, white); border: 1px solid color-mix(in srgb, var(--course-color) 45%, white); padding: 0; }
+.event:hover { background: color-mix(in srgb, var(--course-color) 26%, white); }
+.event-content { display: block; width: 100%; height: 100%; padding: 3px 7px; border: 0; background: transparent; text-align: left; overflow: hidden; }
+.event-content strong { line-height: 18px; }
+.event-content span { color: #43526b; line-height: 16px; }
+.resize-handle { position: absolute; bottom: 0; left: 0; width: 100%; height: 8px; padding: 0; border: 0; background: transparent; cursor: ns-resize; touch-action: none; }
+.resize-handle::after { content: ''; display: block; width: 24px; height: 2px; margin: 3px auto; border-radius: 2px; background: currentColor; opacity: .3; }
+.resize-handle:hover::after, .resize-handle:focus-visible::after { opacity: .8; }
+.overdue-label, .deadline.overdue { color: #b42332; font-weight: 600; }
+.task-card.overdue { border-left: 3px solid #d33244; padding-left: 12px; background: #fff8f8; }
+.tray-task.overdue { border-left: 3px solid #d33244; padding-left: 9px; }
+.event.overdue { border: 2px solid #d33244; }
+.event.overdue .event-content strong { color: #a6192b; }
+.event.overdue .event-content .overdue-label { color: #a6192b; }
+.task-card { padding: 16px 0; align-items: flex-start; gap: 12px; }
+.task-card > .check { margin-top: 2px; }
+.task-top { justify-content: flex-start; flex-wrap: wrap; gap: 6px 10px; }
+.task-body h3 { margin: 0; font-size: 16px; line-height: 23px; }
+.course-tag { background: color-mix(in srgb, var(--course-color) 12%, white); border-radius: 4px; padding: 2px 6px; }
+.task-top .priority { margin-left: auto; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 5px; }
+.task-actions { margin-top: 0; align-items: center; gap: 12px; flex: 0 0 auto; }
+.task-menu { position: relative; }
+.task-menu summary { list-style: none; cursor: pointer; font-size: 20px; padding: 0 6px; border-radius: 4px; }
+.task-menu summary::-webkit-details-marker { display: none; }
+.task-menu summary:focus-visible { outline: 3px solid #8bb9ff; }
+.task-menu[open] > button { position: absolute; z-index: 6; right: 0; top: 28px; background: white; border: 1px solid #dce2eb; border-radius: 5px; padding: 8px 16px; box-shadow: 0 3px 12px #14203922; }
+@media (max-width: 700px) { .task-top .priority { margin-left: 0; } .task-meta { flex-direction: column; } }
