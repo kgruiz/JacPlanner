@@ -702,7 +702,7 @@ def:pub app -> JsxElement {
     );
 
     return
-        <main className="shell">
+        <main className={"shell schedule-pending" if pendingSchedule else "shell"}>
             <header className="masthead" inert={editing}>
                 <div className="brand">JacPlanner</div>
                 <nav aria-label="Planner views">
@@ -985,9 +985,15 @@ def:pub app -> JsxElement {
                                         for task in filteredTasks
                                         if task.plannedDate == day and task.plannedTime
                                     ]}{[
-                                        <div className={"event drag-preview " + CourseColor(task.course)} key={"preview-" + task.taskId}
+                                        <div className={"event drag-preview " + CourseColor(task.course) + (" overdue" if IsOverdue(task, Today()) else "") + (" completed" if task.completed else "")} key={"preview-" + task.taskId}
                                             style={EventStyle(DragTask(task), [DragTask(task)] + [item for item in filteredTasks if item.taskId != task.taskId])}>
-                                            <strong>{task.title}</strong>
+                                            <div className="event-content">
+                                                <strong>{task.title}</strong>
+                                                {<span>{TimeLabel(dragMinutes)} - {TimeLabel(dragMinutes + task.estimateMinutes)}</span> if EventTimeVisible(task) else <span/>}
+                                                {<span>{task.course or "Personal"}</span> if EventCourseVisible(task) else <span/>}
+                                                {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) and EventHeight(task) >= 90 else <span/>}
+                                            </div>
+                                            <span className="resize-handle" aria-hidden="true"/>
                                             <span className="drag-time">{TimeLabel(dragMinutes)} - {TimeLabel(dragMinutes + task.estimateMinutes)}</span>
                                         </div>
                                         for task in tasks if task.taskId == draggedId and dragDay == day
