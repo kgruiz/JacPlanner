@@ -1,10 +1,10 @@
 # Native mobile app
 
-The mobile daily plan uses the same planner service and graph database as the browser and CLI. Its native Calendar tab shows a daily hour timeline, a seven-day date strip, upcoming deadlines, and an expandable unscheduled tray. The Tasks tab supports editing, completing, and reopening every task. Dates are entered as `YYYY-MM-DD` and displayed as `MM/DD/YYYY`.
+The mobile app gives you a daily view of the same tasks you see on the web and in the CLI. You can switch days from the date strip, schedule something from the unscheduled tray, or open the Tasks tab to edit and complete assignments.
 
 ## Prerequisites
 
-Install Xcode with an iOS simulator runtime, CocoaPods, and Node.js. Jac generates an Expo/React Native project in ignored `.jac/mobile-rn/`; generated code and build products should stay out of Git.
+Install Xcode with the iOS 26.5 simulator runtime, CocoaPods, and Node.js. Jac generates the Expo/React Native project in `.jac/mobile-rn/`, which is excluded from Git.
 
 From the repository root, keep the shared server running:
 
@@ -20,7 +20,9 @@ JAC_BUN="$(command -v node)" jac build --platform ios mobile
 python3 mobile/configure-api.py http://127.0.0.1:8000
 ```
 
-Run setup with Jac's default Bun first so dependencies are installed. The `JAC_BUN` override then avoids a Bun/Expo prebuild issue observed locally where the generated Xcode project contains trailing NUL bytes. Jac also invokes Xcode after generating the project; in an iCloud-synced Documents directory this can fail at signing with a resource fork/Finder metadata error. If generation and CocoaPods installation completed, continue with the unsigned simulator build below. The configuration helper sets Expo's supported `extra.apiBaseUrl` value and the imported `__jacApiBase.js` runtime value, so it also works when the native manifest was compiled before configuration. Run it again after regenerating the native project, because Jac can replace these files. The simulator can access the Mac's loopback address.
+Setup uses Jac's default Bun to install dependencies, but the build command switches to Node because Bun produced an invalid Xcode project during local setup. Jac also tries to build the native app at this point. If project generation and CocoaPods installation finish but signing fails with a resource fork or Finder metadata error, you can continue with the unsigned build below.
+
+The last command tells the mobile app where to find the server. The simulator can reach your Mac at `127.0.0.1`, so it uses the same address as the browser. Run `configure-api.py` again if you regenerate the project, since generation can replace that setting.
 
 Build into a directory outside iCloud-synced Documents to avoid Finder metadata errors during framework signing:
 
@@ -32,34 +34,32 @@ xcodebuild -workspace .jac/mobile-rn/ios/main.xcworkspace \
   -derivedDataPath /tmp/jacplanner-ios-derived CODE_SIGNING_ALLOWED=NO
 ```
 
-Start Metro in a third terminal and leave it running:
+Start Metro, which serves the app's JavaScript, in a third terminal and leave it running:
 
 ```sh
 cd .jac/mobile-rn
 node node_modules/expo/bin/cli start --localhost --port 8081
 ```
 
-Open Xcode's Device Hub, choose the iPhone simulator, and start it. With exactly one simulator booted, install and launch the built app from the repository root:
+Open Xcode's Device Hub and start **iPhone 17 Pro with iOS 26.5**. Check `xcrun simctl list devices booted` before continuing: the build destination above does not select the device used by `booted`. With only the iOS 26.5 simulator running, install and launch the app from the repository root:
 
 ```sh
 xcrun simctl install booted /tmp/jacplanner-ios-derived/Build/Products/Debug-iphonesimulator/main.app
 xcrun simctl launch booted com.jac.app
 ```
 
-Use an iOS 26 simulator listed on your Mac if `iPhone 17 Pro,OS=26.5` is unavailable. The current Expo template crashes on iOS 27 because it does not adopt the required scene lifecycle. Native launch and shared server reads were verified on iPhone 17 Pro with iOS 26.5. Current Xcode installations can place Device Hub at `/Applications/Xcode.app/Contents/Applications/DeviceHub.app`.
+Use an iOS 26 simulator listed on your Mac if `iPhone 17 Pro,OS=26.5` is unavailable. The current Expo template crashes on iOS 27 because it does not adopt the required scene lifecycle. Current Xcode installations can place Device Hub at `/Applications/Xcode.app/Contents/Applications/DeviceHub.app`.
 
-## Controls
+## Using the app
 
-- **+** opens a new task form. Tap a timeline block or task title to edit all fields.
-- **Calendar** shows the selected day's timed blocks and an **All day / No time** section for dated tasks without a time. Overlapping tasks occupy separate columns. The timeline expands for early and late tasks.
-- The date strip selects a day. **Week** arrows move backward or forward seven days; **Today** returns to the current local date.
-- **Planned date** uses `YYYY-MM-DD`; optional **Planned time** uses 24-hour `HH:MM`. A time requires a date. Estimates determine block duration; the server rejects blocks ending after midnight. Clear the time to make a dated task untimed, or clear both fields to unschedule it.
-- **Tasks** lists every task with **Mark complete** and **Completed / Reopen** controls. Task titles open the editor.
-- **Unscheduled** expands above the tabs to show tasks without a planned day. Tap a title to schedule it.
-- **Refresh** reloads changes from the browser or CLI. Errors retain the form draft so it can be retried.
+Tap **+** to add a task, or tap an existing title or calendar block to edit it. In the Tasks tab, you can mark an assignment complete and reopen it if you need to come back to it. Deleting tasks is available in the web app.
 
-Course colors use the same deterministic character-sum palette as the web view. Deadline notices use open tasks due on the selected day or the following day. The red current-time line appears only on today's calendar and updates every 30 seconds.
+The Calendar tab shows the selected day's schedule, with an **All day / No time** section for tasks that have a date but no start time. Use the date strip to choose a day, the **Week** arrows to move between weeks, or **Today** to return to the current day. If tasks overlap, they appear side by side, and the timeline expands to fit early or late work.
 
-If the server is unavailable, the app displays an error and allows refreshing. This app requires the local server and does not maintain an offline copy of tasks. Task deletion is available on the web dashboard.
+Enter dates as `YYYY-MM-DD` and start times as 24-hour `HH:MM`; the app displays dates as `MM/DD/YYYY`. A task needs a planned date before you can give it a time, and its estimated minutes determine the length of the block. Blocks can't run past midnight. To keep a task on a day's plan without a specific time, clear its start time. Clear both fields to move it back to **Unscheduled**, which you can expand above the tabs.
 
-Unsigned simulator builds can show Expo SecureStore entitlement warnings. Public local planner endpoints do not require an authentication token. Device Hub UI automation timed out during verification, so native task entry and completion interactions still need a manual simulator check.
+Course colors match the web app, and deadline notices show unfinished work due on the selected day or the next day. On today's calendar, a red line marks the current time and updates every 30 seconds.
+
+Use **Refresh** to pick up changes you've made in the browser or CLI. If a save fails, your draft stays in the form so you can try again. Keep the server running while you use the app, since tasks aren't available offline.
+
+Unsigned builds may show Expo SecureStore entitlement warnings, though the local planner doesn't require a login.

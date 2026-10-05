@@ -1,6 +1,6 @@
 # JacPlanner
 
-A personal coursework planner built with Jac. Organize assignments by course, set priorities and deadlines, and choose a manageable daily workload. The web dashboard, native mobile app, and terminal commands share one persistent server.
+JacPlanner is a coursework planner built with Jac for keeping track of assignments and deciding when to work on them. You can plan your week on the web, check your tasks on an iPhone, or add an assignment from the terminal. They all connect to the same server, so you can switch between them without keeping separate task lists.
 
 - **Author:** Kaden Gruizenga
 - **UMID:** 07961011
@@ -13,7 +13,7 @@ A personal coursework planner built with Jac. Organize assignments by course, se
 - `uv` and Python **3.14** for the project environment.
 - For iPhone simulator use: macOS, Xcode with an installed iOS simulator runtime, and the native build prerequisites described in [mobile/README.md](mobile/README.md).
 
-No AI API key or account setup is needed. This is a single-user app without authentication. The backend binds to `127.0.0.1`, but Jac 0.37.23 launches its development web proxy on all network interfaces, so the default development session can expose planner data to your local network. Run it on a trusted network and stop it when finished.
+You don't need an account or an AI API key to use the planner. It's intended for one person running it locally. Although the backend listens on `127.0.0.1`, Jac 0.37.23 exposes its development web proxy to the local network, so run it on a network you trust and stop the server when you're done.
 
 ## Start the web app and server
 
@@ -25,19 +25,25 @@ jac install
 jac run
 ```
 
-The environment creation is a one-time step. It avoids an observed Jac 0.37.23 bundled-Python error (`_PyBytes_AsString`) during automatic environment creation on this Mac. No environment activation is needed; Jac uses `.jac/venv` directly. On later launches, run `jac run`.
+The first command works around a `_PyBytes_AsString` error encountered during Jac's automatic setup on macOS. You only need to create the environment once, and you don't need to activate it because Jac uses `.jac/venv` directly. After that, `jac run` is enough to start the app.
 
-Open **http://127.0.0.1:8000**. Keep that terminal running while using the web, CLI, or simulator. Stop it with Control-C when finished. Jac manages a persistent Postgres store for the project automatically. Task data survives server restarts and is separate from the source files in Git.
+Once the server starts, open **http://127.0.0.1:8000** and leave the terminal running while you use the app. The CLI and mobile app need it too. Press Control-C when you're finished; your tasks are saved in Jac's Postgres store and will still be there the next time you start it.
 
-The web calendar shows scheduled work as time blocks. Use the task tray to find unscheduled work, choose a day and start time, and filter by course. Drag a whole block to preview its new day and time before dropping it. The preview snaps to 15-minute steps and keeps the block within the day; releasing it saves the new schedule. Drag the bottom edge of a calendar block to change its duration. Resizing snaps to 15-minute steps and stops at midnight; the task editor still accepts exact minutes. Short blocks show only their title when there is not enough room for the time.
+## Using the planner
 
-The Tasks view provides compact, searchable rows for editing, completing, reopening, and deleting work. Unfinished tasks with deadlines before today carry an Overdue label. A past scheduled work session alone does not make a task overdue. Each task has a course, optional deadline, priority, estimated minutes, optional plan date and start time, and notes.
+The app starts with an empty task list. Add an assignment with its course, deadline, priority, and an estimate of how long it'll take. You can also add notes or leave the deadline blank if there isn't one.
 
-Start times use local wall-clock time. Estimated minutes determine the block's length. A time requires a plan date, and a block cannot extend past midnight. Tasks with a date but no time remain available as untimed work for that day. Deadlines and planned work are separate: choosing a work session does not change the deadline.
+When you're ready to make time for a task, drag it from the unscheduled tray onto the calendar. You can move the block to another day or time, and drag its bottom edge to give yourself more or less time. Both actions snap to 15-minute steps, while the task editor lets you enter an exact duration. The time updates as you drag, and the new schedule is saved when you let go.
+
+A task's deadline is separate from its scheduled work time. An assignment could be due Friday even though you've set aside Wednesday afternoon to work on it, so moving that study block won't change the deadline. Overdue assignments are marked in red, and course colors help you see how the week's work is spread out.
+
+If you'd rather work from a list, the Tasks tab lets you search, edit, complete, reopen, or delete tasks. You can filter by course in either view.
+
+All scheduled times are local. A block needs a date and can't extend past midnight, but you can leave its start time blank to keep it on a day's plan without reserving a specific time. Short blocks hide details that won't fit.
 
 ## CLI
 
-Run these from a second terminal in the repository root while the server is running. Dates in commands use `YYYY-MM-DD`; `today` is also accepted for plan dates.
+With the server still running, open a second terminal in the repository root. These examples show how to add a task, find its ID, and update it. Enter dates as `YYYY-MM-DD`, or use `today` when choosing a planned date.
 
 ```sh
 jac run cli -- add "Finish project proposal" --course "EECS 449" --priority high --minutes 60 --due 2026-10-05 --day today --time 10:00
@@ -50,18 +56,18 @@ jac run cli -- complete TASK_ID
 jac run cli -- reopen TASK_ID
 ```
 
-Replace `TASK_ID` with an ID printed by `list`, or a unique prefix. Ambiguous prefixes are rejected. Put global options before the command:
+Replace `TASK_ID` with an ID from `list`. You can use just the beginning of the ID as long as it matches only one task. Options such as `--server` and `--json` go before the command:
 
 ```sh
 jac run cli -- --server http://127.0.0.1:8000 --json list
 jac run cli -- --help
 ```
 
-The CLI exits with code 0 on success, 1 for an unavailable service, and 2 for invalid input. It never opens a separate task database.
+The CLI uses the running server. It exits with code 0 on success, 1 if the service is unavailable, and 2 for invalid input.
 
 ## Mobile
 
-The mobile app uses Jac's native UI primitives and an Expo/React Native project generated locally by Jac. See [the mobile instructions](mobile/README.md) for simulator startup and controls. It connects to the same running planner service as the browser and CLI.
+The iPhone app has a daily calendar and a task list, and it connects to the server you've already started. Follow the [mobile setup instructions](mobile/README.md) to build and run it in an iOS 26.5 simulator. Jac generates the Expo/React Native project from the mobile Jac source.
 
 ## How it fits together
 
@@ -73,9 +79,7 @@ The mobile app uses Jac's native UI primitives and an Expo/React Native project 
 | Mobile | `mobile/main.jac` | Native daily timeline, task entry, scheduling, and completion |
 | CLI | `cli/main.jac` | Terminal task management through the service bridge |
 
-`jac.toml` declares four apps and chooses `web` as the default. The planner service exposes `ListTasks`, `SaveTask`, `ScheduleTask`, `SetCompleted`, and `DeleteTask`. Clients await typed Jac bridge calls. They receive task views rather than direct access to persistent nodes. The web server mounts the planner at `/api/planner`.
-
-The focus is a consistent workflow across all three interfaces: capture work, estimate it, choose a day, and finish it. There is no sample task data inserted automatically.
+The four apps are defined in `jac.toml`, with `web` as the default so that `jac run` starts the browser app and its server. The planner service is available at `/api/planner`, where it handles task storage and validation. Each interface calls the same `ListTasks`, `SaveTask`, `ScheduleTask`, `SetCompleted`, and `DeleteTask` functions through Jac, so the rules for saving and scheduling tasks stay the same across the app.
 
 ## Development checks
 
@@ -87,25 +91,4 @@ jac build --as client web
 bun test web
 ```
 
-Backend tests use temporary isolated stores and check CRUD, validation, and persistence after reopening the server. CLI tests cover calendar validation and safe task-ID selection. Web regression tests exercise compiler-emitted calendar helpers, resize bounds, overdue rules, and editor focus behavior, so build the web client before running them. They cover short and overlapping blocks, midnight bounds, date navigation across daylight saving, leap day, and New Year, and keyboard focus during editing. Generated dependencies, simulator projects, builds, and local data stay out of Git.
-
-## Verification and limitations
-
-Verified on 09/30/2026 with Jac 0.37.23:
-
-- All four apps pass compiler checks. Source lint reports no errors; the save API has a parameter-count warning.
-- Eight backend and CLI tests pass, including time validation, midnight limits, preserving start times during older-client edits, and persistence after restart.
-- Fresh-checkout setup and server restart persistence were verified before the calendar redesign. The redesign uses the same dependencies and startup commands.
-- The redesigned web calendar was checked for task creation, time editing, overlapping blocks, drag scheduling, untimed weekend tasks, search/course/status filters, completion/reopening, and phone-width layout.
-- On 10/01/2026, browser checks verified bottom-edge drag resizing and persistence after reload, keyboard resizing and midnight limits, canceled gestures, failed-save recovery, overdue exclusions, the delete menu, and 390px task rows.
-- Additional web QA covered form limits, literal HTML and Unicode, New Year dates, midnight scheduling, canceled edits and deletion, 390px layout, keyboard navigation, delayed saves, and simulated connection failures. Calendar and editor regressions run with `bun test web` after building the client.
-- Web-created time blocks can be read and rescheduled through the CLI and mobile interface. Mobile time editing, invalid-time feedback, completion, and reopening were exercised through its browser target against the same server.
-- The redesigned native iOS timeline launches and reads shared tasks on an iOS 26.5 simulator. The unsigned native build succeeds. Native taps were not automated; the generated Expo template still requires the documented iOS 26.5 workaround for launch, and unsigned builds may show SecureStore entitlement warnings.
-
-The planner needs the server running and has no offline mode or account isolation. Before submitting, try the native controls in Device Hub.
-
-## References
-
-- [Jac documentation](https://jaclang.org/docs/latest)
-- [Build an AI Day Planner tutorial](https://jaclang.org/docs/v0.37/tutorials/first-app/build-ai-day-planner), adapted for coursework without AI
-- The `jac create --awesome` example, used to understand the multi-app structure
+The backend tests use temporary stores, so they can check task changes and persistence without touching your saved tasks. The CLI tests check dates and task ID matching, while the web tests cover calendar behavior. Since those tests use the compiled web code, run the client build before `bun test web`.
