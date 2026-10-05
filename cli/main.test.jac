@@ -59,3 +59,13 @@ test "time options reach canonical JSON schedules" {
     task = TaskView(plannedDate="2026-09-30", plannedTime="09:30");
     assert TaskData(task)["plannedTime"] == "09:30";
 }
+
+test "repeat options and JSON preserve recurrence" {
+    assert BuildParser().parse_args(["add", "Task"]).repeat == "none";
+
+    for recurrence in ["none", "daily", "weekly"] {
+        added = BuildParser().parse_args(["add", "Task", "--repeat", recurrence]);
+        assert added.repeat == recurrence;
+        assert TaskData(TaskView(recurrence=recurrence))["recurrence"] == recurrence;
+    }
+}

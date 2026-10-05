@@ -8,7 +8,8 @@ obj:pub TaskView {
         plannedDate: str = "",
         plannedTime: str = "",
         notes: str = "",
-        completed: bool = False;
+        completed: bool = False,
+        recurrence: str = "none";
 }
 
 obj:pub TaskList {

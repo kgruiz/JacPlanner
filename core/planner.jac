@@ -1,4 +1,4 @@
-import from datetime { date }
+import from datetime { date, timedelta }
 import from core.models { TaskView, TaskList, TaskResult }
 
 node Task {
@@ -10,7 +10,9 @@ node Task {
         plannedDate: str = "",
         plannedTime: str = "",
         notes: str = "",
-        completed: bool = False;
+        completed: bool = False,
+        recurrence: str = "none",
+        successorGenerated: bool = False;
 
     def ToView -> TaskView {
         return TaskView(
@@ -23,7 +25,8 @@ node Task {
             plannedDate=self.plannedDate,
             plannedTime=getattr(self, "plannedTime", ""),
             notes=self.notes,
-            completed=self.completed
+            completed=self.completed,
+            recurrence=getattr(self, "recurrence", "none")
         );
     }
 }
@@ -101,7 +104,8 @@ def:pub SaveTask(
     estimateMinutes: int = 30,
     plannedDate: str = "",
     notes: str = "",
-    plannedTime: str | None = None
+    plannedTime: str | None = None,
+    recurrence: str | None = None
 ) -> TaskResult {
     cleanTitle = title.strip();
     # Jac 0.37.23's REST binder supplies omitted numeric defaults as strings.
@@ -129,6 +133,14 @@ def:pub SaveTask(
         return TaskResult(error="Task was not found.");
     }
 
+    cleanRecurrence = recurrence
+        if recurrence is not None and recurrence != "None"
+        else (getattr(task, "recurrence", "none") if task is not None else "none");
+
+    if cleanRecurrence not in ["none", "daily", "weekly"] {
+        return TaskResult(error="Recurrence must be none, daily, or weekly.");
+    }
+
     # The REST binder serializes an omitted None default as the string "None".
     cleanTime = plannedTime
         if plannedTime is not None and plannedTime != "None"
@@ -152,6 +164,7 @@ def:pub SaveTask(
     task.plannedDate = plannedDate;
     task.plannedTime = cleanTime;
     task.notes = notes;
+    task.recurrence = cleanRecurrence;
 
     return TaskResult(ok=True, task=task.ToView());
 }
@@ -180,6 +193,38 @@ def:pub SetCompleted(taskId: str, completed: bool) -> TaskResult {
 
     if task is None {
         return TaskResult(error="Task was not found.");
+    }
+    recurrence = getattr(task, "recurrence", "none");
+
+    if completed and not task.completed and recurrence != "none"
+        and not getattr(task, "successorGenerated", False) {
+        interval = timedelta(days=1 if recurrence == "daily" else 7);
+
+        # Compute both dates before changing the occurrence or creating its successor.
+        try {
+            nextDue = (date.fromisoformat(task.dueDate) + interval).isoformat()
+                if task.dueDate else "";
+            nextPlanned = (date.fromisoformat(task.plannedDate) + interval).isoformat()
+                if task.plannedDate else "";
+
+            if not nextDue and not nextPlanned {
+                nextDue = (date.today() + interval).isoformat();
+            }
+        } except (ValueError, OverflowError) {
+            return TaskResult(error="The next occurrence exceeds the supported date range.");
+        }
+        root ++> Task(
+            title=task.title,
+            course=task.course,
+            dueDate=nextDue,
+            priority=task.priority,
+            estimateMinutes=task.estimateMinutes,
+            plannedDate=nextPlanned,
+            plannedTime=getattr(task, "plannedTime", ""),
+            notes=task.notes,
+            recurrence=recurrence
+        );
+        task.successorGenerated = True;
     }
     task.completed = completed;
 

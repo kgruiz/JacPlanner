@@ -54,6 +54,8 @@ Use an iOS 26 simulator listed on your Mac if `iPhone 17 Pro,OS=26.5` is unavail
 
 Tap **+** to add a task, or tap an existing title or calendar block to edit it. In the Tasks tab, you can mark an assignment complete and reopen it if you need to come back to it. Deleting tasks is available in the web app.
 
+Choose **Daily** or **Weekly** under **Repeat** for work you do regularly. Completing it creates the next occurrence and keeps the completed one in your history. To stop repeating, edit the next open task and turn repetition off.
+
 The Calendar tab shows the selected day's schedule, with an **All day / No time** section for tasks that have a date but no start time. Use the date strip to choose a day, the **Week** arrows to move between weeks, or **Today** to return to the current day. If tasks overlap, they appear side by side, and the timeline expands to fit early or late work.
 
 Enter dates as `YYYY-MM-DD` and start times as 24-hour `HH:MM`; the app displays dates as `MM/DD/YYYY`. A task needs a planned date before you can give it a time, and its estimated minutes determine the length of the block. Blocks can't run past midnight. To keep a task on a day's plan without a specific time, clear its start time. Clear both fields to move it back to **Unscheduled**, which you can expand above the tabs.
