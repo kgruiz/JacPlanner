@@ -39,6 +39,10 @@ A task's deadline is separate from its scheduled work time. An assignment could 
 
 If you'd rather work from a list, the Tasks tab lets you search, edit, complete, reopen, or delete tasks. You can filter by course in either view.
 
+For regular homework or study sessions, set **Repeat** to **Daily** or **Weekly** in the task editor. Completing the task keeps it in your history and creates the next one, moving its deadline and planned date ahead by one day or one week. Its start time, duration, and other details carry over. The dates advance from the task's dates, even if you finish it late. If both dates are blank, the next task gets a deadline one day or one week after you complete it.
+
+Reopening a completed task leaves its next occurrence in place, and completing it again won't create another copy. To stop repeating, set **Repeat** to **Does not repeat** on the next open task. Changes apply to that task and the occurrences it creates afterward.
+
 All scheduled times are local. A block needs a date and can't extend past midnight, but you can leave its start time blank to keep it on a day's plan without reserving a specific time. Short blocks hide details that won't fit.
 
 ## CLI
@@ -47,6 +51,7 @@ With the server still running, open a second terminal in the repository root. Th
 
 ```sh
 jac run cli -- add "Finish project proposal" --course "EECS 449" --priority high --minutes 60 --due 2026-10-05 --day today --time 10:00
+jac run cli -- add "Weekly reading" --course "EECS 449" --due 2026-10-12 --repeat weekly
 jac run cli -- list --day today --status open
 jac run cli -- list --course "EECS 449"
 jac run cli -- --json list
@@ -88,7 +93,8 @@ jac check
 jac check core web mobile cli --lint
 jac test
 jac build --as client web
-bun test web
+jac build --platform web mobile
+bun test web mobile
 ```
 
-The backend tests use temporary stores, so they can check task changes and persistence without touching your saved tasks. The CLI tests check dates and task ID matching, while the web tests cover calendar behavior. Since those tests use the compiled web code, run the client build before `bun test web`.
+The backend tests use temporary stores, so they can check task changes and persistence without touching your saved tasks. The CLI tests check dates, repeat options, and task ID matching. The web and mobile tests use the compiled client code to check the editors, and the web tests also cover calendar behavior. Run both client builds before `bun test web mobile`.

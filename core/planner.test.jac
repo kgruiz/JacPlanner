@@ -249,3 +249,155 @@ test "time blocks validate and persist without losing legacy edits" {
         }
     }
 }
+
+test "recurrence advances calendar dates and copies task details" {
+    with TemporaryDirectory() as storePath {
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+
+        try {
+            cases = [
+                ("daily", "2026-01-31", "2026-02-01", "2026-12-31", "2027-01-01"),
+                ("daily", "2028-02-28", "2028-02-29", "2028-02-29", "2028-03-01"),
+                ("weekly", "2026-12-28", "2027-01-04", "2028-02-25", "2028-03-03"),
+                ("daily", "2026-02-28", "2026-03-01", "", ""),
+                ("weekly", "", "", "2026-10-01", "2026-10-08")
+            ];
+
+            for (recurrence, due, nextDue, planned, nextPlanned) in cases {
+                saved = client.post(
+                    "/function/SaveTask",
+                    json={
+                        "title": "Practice",
+                        "course": "EECS 449",
+                        "priority": "high",
+                        "estimateMinutes": 45,
+                        "notes": "Review",
+                        "dueDate": due,
+                        "plannedDate": planned,
+                        "plannedTime": "09:30" if planned else "",
+                        "recurrence": recurrence
+                    }
+                ).data["result"];
+                assert saved["ok"] , saved;
+                taskId = saved["task"]["taskId"];
+                done = client.post(
+                    "/function/SetCompleted", json={"taskId": taskId, "completed": True}
+                ).data["result"];
+                assert done["ok"] and done["task"]["completed"];
+                tasks = client.post("/function/ListTasks", json={}).data["result"]["tasks"];
+                following = [task for task in tasks if not task["completed"]];
+                assert len(following) == 1;
+                successor = following[0];
+                assert successor["dueDate"] == nextDue;
+                assert successor["plannedDate"] == nextPlanned;
+
+                for field in ["title", "course", "priority", "estimateMinutes", "notes", "plannedTime", "recurrence"] {
+                    assert successor[field] == saved["task"][field];
+                }
+
+                for task in tasks {
+                    client.post("/function/DeleteTask", json={"taskId": task["taskId"]});
+                }
+            }
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "recurrence generates only once even after reopening deleting and restarting" {
+    with TemporaryDirectory() as storePath {
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+
+        try {
+            saved = client.post(
+                "/function/SaveTask", json={"title": "Daily", "recurrence": "daily"}
+            ).data["result"];
+            taskId = saved["task"]["taskId"];
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": True});
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": True});
+            tasks = client.post("/function/ListTasks", json={}).data["result"]["tasks"];
+            assert len(tasks) == 2;
+            successor = [task for task in tasks if task["taskId"] != taskId][0];
+            assert successor["dueDate"] == (date.today() + timedelta(days=1)).isoformat();
+            assert successor["plannedDate"] == "";
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": False});
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": True});
+            assert len(client.post("/function/ListTasks", json={}).data["result"]["tasks"]) == 2;
+            client.post("/function/DeleteTask", json={"taskId": successor["taskId"]});
+        } finally {
+            client.close();
+        }
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+
+        try {
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": False});
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": True});
+            assert len(client.post("/function/ListTasks", json={}).data["result"]["tasks"]) == 1;
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "recurrence edits preserve legacy defaults and reject invalid or overflowing dates" {
+    with TemporaryDirectory() as storePath {
+        client = JacTestClient.from_file(SERVER, base_path=storePath);
+
+        try {
+            plain = client.post("/function/SaveTask", json={"title": "Plain"}).data["result"];
+            taskId = plain["task"]["taskId"];
+            assert plain["task"]["recurrence"] == "none";
+            client.post("/function/SetCompleted", json={"taskId": taskId, "completed": True});
+            assert len(client.post("/function/ListTasks", json={}).data["result"]["tasks"]) == 1;
+            recurring = client.post(
+                "/function/SaveTask", json={"title": "Weekly", "recurrence": "weekly"}
+            ).data["result"];
+            repeatId = recurring["task"]["taskId"];
+
+            for payload in [
+                {"taskId": repeatId, "title": "Edited"},
+                {"taskId": repeatId, "title": "Edited", "recurrence": "None"}
+            ] {
+                edited = client.post("/function/SaveTask", json=payload).data["result"];
+                assert edited["ok"] and edited["task"]["recurrence"] == "weekly";
+            }
+            invalid = client.post(
+                "/function/SaveTask", json={"taskId": repeatId, "title": "Bad", "recurrence": "monthly"}
+            ).data["result"];
+            assert not invalid["ok"];
+            cleared = client.post(
+                "/function/SaveTask", json={"taskId": repeatId, "title": "Cleared", "recurrence": "none"}
+            ).data["result"];
+            assert cleared["ok"] and cleared["task"]["recurrence"] == "none";
+            client.post("/function/SetCompleted", json={"taskId": repeatId, "completed": True});
+            assert len(client.post("/function/ListTasks", json={}).data["result"]["tasks"]) == 2;
+
+            for field in ["dueDate", "plannedDate"] {
+                saved = client.post(
+                    "/function/SaveTask", json={"title": "Overflow", "recurrence": "daily", field: "9999-12-31"}
+                ).data["result"];
+                overflowId = saved["task"]["taskId"];
+                rejected = client.post(
+                    "/function/SetCompleted", json={"taskId": overflowId, "completed": True}
+                ).data["result"];
+                assert not rejected["ok"];
+                tasks = client.post("/function/ListTasks", json={}).data["result"]["tasks"];
+                original = [task for task in tasks if task["taskId"] == overflowId][0];
+                assert not original["completed"];
+                assert original[field] == "9999-12-31";
+                client.post("/function/DeleteTask", json={"taskId": overflowId});
+            }
+            assert len(client.post("/function/ListTasks", json={}).data["result"]["tasks"]) == 2;
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "older task nodes expose default recurrence" {
+    task = Task(title="Legacy");
+    delattr(task, "recurrence");
+    delattr(task, "successorGenerated");
+    assert task.ToView().recurrence == "none";
+}

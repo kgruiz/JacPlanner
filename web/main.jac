@@ -207,6 +207,7 @@ def:pub app -> JsxElement {
         course: str = "",
         dueDate: str = "",
         priority: str = "medium",
+        recurrence: str = "none",
         estimate: str = "30",
         plannedDate: str = Today(),
         notes: str = "",
@@ -250,6 +251,7 @@ def:pub app -> JsxElement {
         course = task.course;
         dueDate = task.dueDate;
         priority = task.priority;
+        recurrence = task.recurrence;
         estimate = str(task.estimateMinutes);
         plannedDate = task.plannedDate;
         plannedTime = task.plannedTime;
@@ -268,6 +270,7 @@ def:pub app -> JsxElement {
         course = "";
         dueDate = "";
         priority = "medium";
+        recurrence = "none";
         estimate = "30";
         plannedDate = "";
         plannedTime = "";
@@ -509,7 +512,8 @@ def:pub app -> JsxElement {
                 int(estimate),
                 plannedDate,
                 notes,
-                plannedTime
+                plannedTime,
+                recurrence
             );
 
             if result.ok {
@@ -800,7 +804,7 @@ def:pub app -> JsxElement {
                                 >
                                     {task.title}
                                 </strong>
-                                <span>{task.course or "Personal"}</span>
+                                <span>{task.course or "Personal"}{" · Repeats " + task.recurrence if task.recurrence != "none" else ""}</span>
                                 {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) else <span/>}
                             </button>
                             <span className="duration">
@@ -966,7 +970,7 @@ def:pub app -> JsxElement {
                                             <button className="event-content" aria-label={"Edit " + task.title + ", " + TimeLabel(TimeMinutes(task.plannedTime)) + ", " + str(PreviewTask(task).estimateMinutes) + " minutes" + (", overdue" if IsOverdue(task, Today()) else "")} disabled={busy or bool(resizingId)} onClick={lambda { Edit(task); }}>
                                                 <strong>{task.title}</strong>
                                                 {<span>{TimeLabel(TimeMinutes(task.plannedTime))} - {TimeLabel(TimeMinutes(task.plannedTime) + PreviewTask(task).estimateMinutes)}</span> if EventTimeVisible(PreviewTask(task)) else <span/>}
-                                                {<span>{task.course or "Personal"}</span> if EventCourseVisible(PreviewTask(task)) else <span/>}
+                                                {<span>{task.course or "Personal"}{" · " + task.recurrence if task.recurrence != "none" else ""}</span> if EventCourseVisible(PreviewTask(task)) else <span/>}
                                                 {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) and EventHeight(PreviewTask(task)) >= 90 else <span/>}
                                             </button>
                                             <button className="resize-handle" aria-label={"Resize " + task.title + ", " + str(PreviewTask(task).estimateMinutes) + " minutes. Use up or down arrows."} title="Drag to resize; arrow keys adjust by 15 minutes" disabled={busy}
@@ -990,7 +994,7 @@ def:pub app -> JsxElement {
                                             <div className="event-content">
                                                 <strong>{task.title}</strong>
                                                 {<span>{TimeLabel(dragMinutes)} - {TimeLabel(dragMinutes + task.estimateMinutes)}</span> if EventTimeVisible(task) else <span/>}
-                                                {<span>{task.course or "Personal"}</span> if EventCourseVisible(task) else <span/>}
+                                                {<span>{task.course or "Personal"}{" · " + task.recurrence if task.recurrence != "none" else ""}</span> if EventCourseVisible(task) else <span/>}
                                                 {<span className="overdue-label">Overdue</span> if IsOverdue(task, Today()) and EventHeight(task) >= 90 else <span/>}
                                             </div>
                                             <span className="resize-handle" aria-hidden="true"/>
@@ -1054,6 +1058,7 @@ def:pub app -> JsxElement {
                                             <span>{str(task.estimateMinutes)} min</span>
                                             <span className={"deadline-meta overdue-label" if IsOverdue(task, Today()) else "deadline-meta"}>{"Overdue · Due " + DisplayDate(task.dueDate) if IsOverdue(task, Today()) else "Due " + DisplayDate(task.dueDate) if task.dueDate else "No deadline"}</span>
                                             <span className="schedule-meta">{ScheduleLabel(task)}</span>
+                                            {<span>Repeats {task.recurrence}</span> if task.recurrence != "none" else <span/>}
                                         </div>
                                         {<p className="notes">{task.notes}</p>
                                             if task.notes
@@ -1141,6 +1146,17 @@ def:pub app -> JsxElement {
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
+                                    </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
+                                </label>
+                                <label className="field">
+                                    <span>Repeat</span>
+                                    <div className="select-control"><select
+                                        value={recurrence}
+                                        onChange={lambda (e: ChangeEvent) { recurrence = e.target.value; }}
+                                    >
+                                        <option value="none">Does not repeat</option>
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
                                     </select><ChevronDown size={16} strokeWidth={2} aria-hidden="true"/></div>
                                 </label>
                                 <Field

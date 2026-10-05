@@ -38,6 +38,10 @@ def BuildParser -> argparse.ArgumentParser {
         "--time", `default="", help="Block start as HH:MM (requires --day)"
     );
     add.add_argument("--notes", `default="");
+    add.add_argument(
+        "--repeat", choices=["none", "daily", "weekly"], `default="none",
+        help="Repeat after completion daily or weekly"
+    );
     listing = commands.add_parser(
         "list", help="List tasks, optionally for one day or course"
     );
@@ -124,7 +128,7 @@ def DisplayTasks(tasks: list[TaskView], asJson: bool) {
             else "None";
         print(f"[{status}] {task.title} ({course})");
         print(
-            f"  {task.priority} priority | {task.estimateMinutes} min | Plan: {day} | Due: {due}"
+            f"  {task.priority} priority | {task.estimateMinutes} min | Plan: {day} | Due: {due} | Repeat: {task.recurrence}"
         );
         print(f"  ID: {task.taskId}");
     }
@@ -141,7 +145,8 @@ def TaskData(task: TaskView) -> dict[str, any] {
         "plannedDate": task.plannedDate,
         "plannedTime": task.plannedTime,
         "notes": task.notes,
-        "completed": task.completed
+        "completed": task.completed,
+        "recurrence": task.recurrence
     };
 }
 
@@ -160,7 +165,8 @@ async def main(argv: list[str]) -> int {
                 args.minutes,
                 PlanDate(args.day),
                 args.notes,
-                args.time
+                args.time,
+                args.repeat
             );
         } else {
             listing = await ListTasks();

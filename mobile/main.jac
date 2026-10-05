@@ -115,6 +115,7 @@ def:pub app -> JsxElement {
         plannedDate: str = Today(),
         notes: str = "",
         plannedTime: str = "",
+        recurrence: str = "none",
         editingId: str = "",
         tab: str = "Calendar",
         trayOpen: bool = False,
@@ -173,7 +174,8 @@ def:pub app -> JsxElement {
                 int(estimate),
                 plannedDate,
                 notes,
-                plannedTime
+                plannedTime,
+                recurrence
             );
 
             if result.ok {
@@ -181,6 +183,7 @@ def:pub app -> JsxElement {
                 course = "";
                 dueDate = "";
                 notes = "";
+                recurrence = "none";
                 adding = False;
                 Keyboard.dismiss();
                 await Refresh();
@@ -203,6 +206,7 @@ def:pub app -> JsxElement {
         estimate = str(task.estimateMinutes);
         plannedDate = task.plannedDate;
         plannedTime = task.plannedTime;
+        recurrence = task.recurrence;
         notes = task.notes;
         adding = True;
         error = "";
@@ -230,6 +234,11 @@ def:pub app -> JsxElement {
                             if task.plannedTime
                             else "No time"} · Due {DisplayDate(task.dueDate)}
                     </Text>
+                    {<Text style={styles.detail}>
+                        {"Repeats daily" if task.recurrence == "daily" else "Repeats weekly"}
+                    </Text>
+                        if task.recurrence != "none"
+                        else <View/>}
                 </Pressable>
                 <Pressable
                     disabled={busy}
@@ -363,6 +372,7 @@ def:pub app -> JsxElement {
                             estimate = "30";
                             plannedDate = selectedDate;
                             plannedTime = "";
+                            recurrence = "none";
                             adding = not adding;
                             error = "";
                         }}
@@ -489,6 +499,39 @@ def:pub app -> JsxElement {
                         onChange={lambda (value: str) { plannedTime = value; }}
                         placeholder="14:00"
                     />
+                    <Text style={styles.label}>Repeat</Text>
+                    <View style={styles.row}>
+                        {[
+                            <Pressable
+                                key={interval}
+                                style={styles.button
+                                    if interval == recurrence
+                                    else styles.secondary}
+                                disabled={busy}
+                                accessibilityRole="button"
+                                accessibilityLabel={"Do not repeat"
+                                    if interval == "none"
+                                    else "Repeat " + interval}
+                                accessibilityState={{"selected": interval == recurrence}}
+                                onPress={lambda { recurrence = interval; }}
+                            >
+                                <Text
+                                    style={styles.buttonText
+                                        if interval == recurrence
+                                        else styles.secondaryText}
+                                >
+                                    {"None" if interval == "none"
+                                        else "Daily" if interval == "daily"
+                                        else "Weekly"}
+                                </Text>
+                            </Pressable> for interval in ["none", "daily", "weekly"]
+                        ]}
+                    </View>
+                    {<Text style={styles.detail}>
+                        Completing this task adds the next occurrence.
+                    </Text>
+                        if recurrence != "none"
+                        else <View/>}
                     <Field
                         label="Notes"
                         value={notes}
@@ -583,6 +626,8 @@ def:pub app -> JsxElement {
                                     {block["task"].course or "Personal"}{" · "
                                         + TimeLabel(block["minute"])
                                         if block["task"].estimateMinutes <= 45
+                                        else ""}{" · " + block["task"].recurrence
+                                        if block["task"].recurrence != "none"
                                         else ""}
                                 </Text>
                                 {<Text numberOfLines={1} style={styles.detail}>
