@@ -3,7 +3,7 @@
 A personal coursework planner built with Jac. Organize assignments by course, set priorities and deadlines, and choose a manageable daily workload. The web dashboard, native mobile app, and terminal commands share one persistent server.
 
 - **Author:** Kaden Gruizenga
-- **UMID:** TODO: add before submission
+- **UMID:** 07961011
 - **Course:** EECS 449, Fall 2026, Extra Credit 1
 
 ## Requirements
@@ -102,7 +102,7 @@ Verified on 09/30/2026 with Jac 0.37.23:
 - Web-created time blocks can be read and rescheduled through the CLI and mobile interface. Mobile time editing, invalid-time feedback, completion, and reopening were exercised through its browser target against the same server.
 - The redesigned native iOS timeline launches and reads shared tasks on an iOS 26.5 simulator. The unsigned native build succeeds. Native taps were not automated; the generated Expo template still requires the documented iOS 26.5 workaround for launch, and unsigned builds may show SecureStore entitlement warnings.
 
-The planner needs the server running and has no offline mode or account isolation. Before submitting, replace the UMID placeholder and try the native controls in Device Hub.
+The planner needs the server running and has no offline mode or account isolation. Before submitting, try the native controls in Device Hub.
 
 ## References
 
